@@ -5,7 +5,7 @@
   const {
     nfd, fmt, fmt1, pct, compact, rupiah, sum, avg, clamp, slice, changePct, dShort, dLong,
     el, SEV_LABEL, statusIcon, pill, blangkoStats, buildAlerts,
-    STATUS, STATUS_COLOR, statusLabel, parseStatus, share, scaled, wargaView, pengaduanView,
+    W, wargaAll, ready,
   } = window.DashLib;
 
   /* ============================== tooltip ============================== */
@@ -298,12 +298,9 @@
   }
 
   /* ============================== kalkulasi ============================== */
-  const state = { days: 30, status: parseStatus(new URLSearchParams(location.search).get('status')) };
+  const state = { days: 30 };
   const vsText = () => `vs ${state.days} hari sebelumnya`;
-  const NO_FILTER = new Set(['aset', 'server', 'blangko']); // data yang tidak terkait status perkawinan warga
-  /** `kind` = jenis porsi status (lihat porsiStatus di data.js); tanpa kind deret dipakai apa adanya. */
-  function periodStats(arr, mode = 'sum', kind = null) {
-    if (kind) arr = scaled(arr, kind, state.status);
+  function periodStats(arr, mode = 'sum') {
     const cur = slice(arr, state.days), prev = slice(arr, state.days, state.days);
     const f = mode === 'sum' ? sum : avg;
     return { cur, prev, c: f(cur), p: f(prev), chg: changePct(f(cur), f(prev)) };
@@ -316,7 +313,7 @@
       el('div', { class: 'sec-head' }, [
         el('span', { class: 'sec-num', 'aria-hidden': 'true', text: num }),
         el('div', {}, [
-          el('h2', { id: id + '-h' }, [title, NO_FILTER.has(id) && state.status !== 'semua' ? el('span', { class: 'nofilter', text: 'Tidak terpengaruh filter status' }) : null]),
+          el('h2', { id: id + '-h', text: title }),
           el('p', { class: 'insight', text: insight }),
         ]),
       ]),
@@ -328,12 +325,12 @@
 
   function secMobile() {
     const m = D.mobile;
-    const aktif = periodStats(m.penggunaAktifHarian, 'avg', 'penggunaAktif');
-    const aju = periodStats(m.pengajuanHarian, 'sum', 'pengajuan');
-    const sel = periodStats(m.selesaiHarian, 'sum', 'pengajuan');
+    const aktif = periodStats(m.penggunaAktifHarian, 'avg');
+    const aju = periodStats(m.pengajuanHarian);
+    const sel = periodStats(m.selesaiHarian);
     const rate = (sel.c / (aju.c || 1)) * 100, ratePrev = (sel.p / (aju.p || 1)) * 100;
-    const wv = wargaView(state.status), pg = pengaduanView(state.status);
-    const terdaftarPct = (wv.terdaftarApp / wv.penduduk) * 100;
+    const jumlahWarga = D.warga.records.length;
+    const terdaftarPct = (m.wargaTerdaftar / (jumlahWarga || 1)) * 100;
     const insight = `Rata-rata ${fmt(aktif.c)} pengguna aktif per hari (${aktif.chg >= 0 ? 'naik' : 'turun'} ${fmt1(Math.abs(aktif.chg))}% vs ${state.days} hari sebelumnya); ${fmt(aju.c)} pengajuan layanan masuk, ${pct(rate, 0)} sudah selesai.`;
 
     const jenis = m.pengajuanPerJenis.map((j) => ({ label: j.label, value: Math.round(j.bobot * aju.c) }));
@@ -342,8 +339,8 @@
         tile({ label: 'Pengguna aktif harian (rata-rata)', value: fmt(aktif.c), delta: { value: aktif.chg, vs: vsText() }, spark: bucket(aktif.cur, 12, 'avg') }),
         tile({ label: 'Pengajuan layanan', value: fmt(aju.c), delta: { value: aju.chg, vs: vsText() }, spark: bucket(aju.cur, 12, 'sum') }),
         tile({ label: 'Pengajuan selesai', value: pct(rate, 0), delta: { value: rate - ratePrev, unit: ' poin', vs: vsText() }, sub: `${fmt(sel.c)} dari ${fmt(aju.c)} pengajuan` }),
-        tile({ label: 'Warga terdaftar di aplikasi', value: fmt(wv.terdaftarApp), sub: `${pct(terdaftarPct, 0)} dari ${fmt(wv.penduduk)} penduduk · rating ${nfd(1).format(m.rating)}/5 (${fmt(m.jumlahUlasan)} ulasan)` }),
-        tile({ label: 'Pengaduan warga terbuka', value: fmt(pg.terbuka), sev: pg.lebih7Hari ? 'warning' : null, sub: pg.lebih7Hari ? `${pg.lebih7Hari} belum ditangani lebih dari 7 hari` : 'Semua ditangani < 7 hari' }),
+        tile({ label: 'Warga terdaftar di aplikasi', value: fmt(m.wargaTerdaftar), sub: `${pct(terdaftarPct, 0)} dari ${fmt(jumlahWarga)} penduduk · rating ${nfd(1).format(m.rating)}/5 (${fmt(m.jumlahUlasan)} ulasan)` }),
+        tile({ label: 'Pengaduan warga terbuka', value: fmt(m.pengaduanTerbuka), sev: m.pengaduanLebih7Hari ? 'warning' : null, sub: m.pengaduanLebih7Hari ? `${m.pengaduanLebih7Hari} belum ditangani lebih dari 7 hari` : 'Semua ditangani < 7 hari' }),
       ),
       grid2(
         card({
@@ -362,7 +359,7 @@
 
   function secKiosk() {
     const k = D.kiosk;
-    const tr = periodStats(k.transaksiHarian, 'sum', 'transaksiKiosk');
+    const tr = periodStats(k.transaksiHarian);
     const online = k.perangkat.filter((p) => p.status === 'online').length;
     const offline = k.perangkat.length - online;
     const lowPaper = k.perangkat.filter((p) => p.kertasPersen < 20);
@@ -393,7 +390,7 @@
         title: 'Status tiap kiosk', sub: 'Kondisi saat ini',
         tableOnly: [
           ['Kiosk', 'Lokasi', 'Status', 'Uptime 30 hari', 'Transaksi hari ini', 'Kertas', 'Catatan'],
-          k.perangkat.map((p) => [p.nama, p.lokasi, pill(sevOf(p.status), p.status === 'online' ? 'Online' : 'Offline'), pct(p.uptime30), fmt(p.transaksiHariIni * share('transaksiKiosk', state.status)),
+          k.perangkat.map((p) => [p.nama, p.lokasi, pill(sevOf(p.status), p.status === 'online' ? 'Online' : 'Offline'), pct(p.uptime30), fmt(p.transaksiHariIni),
             p.kertasPersen < 20 ? pill('warning', pct(p.kertasPersen, 0)) : pct(p.kertasPersen, 0), p.catatan]),
           { tall: true, numCols: [3, 4] },
         ],
@@ -441,76 +438,285 @@
     );
   }
 
-  function secWarga() {
-    const st = state.status, w = wargaView(st), mt = w.mutasi;
-    const lab = statusLabel(st).toLowerCase();
-    const totalSemua = sum(w.komposisi.map((c) => c.value));
-    const net = mt.lahir + mt.datang - mt.meninggal - mt.pindah;
-    const signed = (n) => (n >= 0 ? '+' : '−') + fmt(Math.abs(n));
-    const lengkap = (v) => (v >= 90 ? 'ok' : v >= 75 ? 'warning' : 'critical');
-    const terendah = w.kelengkapan.reduce((a, b) => (b.value < a.value ? b : a));
-    const insight = `${fmt(w.penduduk)} penduduk${st === 'semua' ? '' : ` berstatus ${lab} (${pct((w.penduduk / totalSemua) * 100, 0)} dari seluruh warga)`} dalam ${fmt(w.kepalaKeluarga)} KK. Data paling tertinggal: "${terendah.label}" (${pct(terendah.value)}).`;
+  /* ============================== data kependudukan (SIAK) ============================== */
+  // Filter bertahan antar render ulang (ganti periode); dibaca dari URL saat halaman dibuka.
+  const wf = { f: W.filterFromParams(new URLSearchParams(location.search)), page: 0, sort: { key: 'nama', dir: 1 } };
+  const covSev = (p) => (p >= 90 ? 'ok' : p >= 75 ? 'warning' : 'critical');
+  const pendLabel = (r) => (r.pend == null ? '—' : W.PEND_LEVELS[r.pend]);
+  const jkLabel = (jk) => (jk === 'L' ? 'Laki-laki' : jk === 'P' ? 'Perempuan' : '—');
 
-    const parts = w.komposisi.map((c) => ({ key: c.key, name: c.label, color: STATUS_COLOR[c.key] }));
-    const komposisiRows = [{
-      label: 'Seluruh warga', right: `${fmt(totalSemua)} jiwa`,
-      values: Object.fromEntries(w.komposisi.map((c) => [c.key, c.value])),
-    }];
-    const kv = el('dl', { class: 'kv kv-keys' });
-    w.komposisi.forEach((c) => {
-      const on = st === 'semua' || st === c.key;
-      kv.append(
-        el('dt', { class: on ? 'on' : 'off' }, [el('i', { class: 'box', style: 'background:' + STATUS_COLOR[c.key] }), c.label]),
-        el('dd', { class: on ? 'on' : 'off', text: `${fmt(c.value)} jiwa · ${pct((c.value / totalSemua) * 100, 0)}` })
-      );
+  function kartuCell(wajib, sudah, belum) {
+    if (!wajib) return 'Tidak wajib';
+    if (sudah) return pill('ok', 'Sudah');
+    if (belum) return pill('warning', 'Belum');
+    return '—';
+  }
+
+  /* ---- dialog detail: isi data satu warga ---- */
+  let dlg = null;
+  function openDetail(r, all) {
+    if (!dlg) {
+      dlg = el('dialog', { class: 'detail', 'aria-labelledby': 'detail-h' });
+      dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
+      document.body.append(dlg);
+    }
+    let reveal = false;
+    const nikEl = el('span', { text: W.maskNik(r.nik) });
+    const nikBtn = el('button', { type: 'button', class: 'btn', text: 'Tampilkan', 'aria-pressed': 'false' });
+    nikBtn.addEventListener('click', () => {
+      reveal = !reveal;
+      nikEl.textContent = reveal ? r.nik || '—' : W.maskNik(r.nik);
+      nikBtn.textContent = reveal ? 'Sembunyikan' : 'Tampilkan';
+      nikBtn.setAttribute('aria-pressed', String(reveal));
     });
-    kv.append(el('dt', { text: 'Total' }), el('dd', { text: `${fmt(totalSemua)} jiwa` }));
+    const row = (k, v) => [el('dt', { text: k }), el('dd', {}, v == null || v === '' ? '—' : v)];
+    const kartu = (wajib, sudah, belum, ya) => (!wajib ? 'Tidak wajib pada usia/status ini' : sudah ? 'Sudah punya' : belum ? 'Belum punya (wajib)' : ya);
+    const keluarga = r.noKK ? all.filter((x) => x.noKK === r.noKK) : [];
+    dlg.replaceChildren(
+      el('div', { class: 'detail-head' }, [
+        el('div', {}, [
+          el('h3', { id: 'detail-h', text: r.nama }),
+          el('p', { text: `${r.usia == null ? '—' : r.usia + ' tahun'} · ${jkLabel(r.jk)} · ${r.status ? W.statusLabel(r.status) : r.statusKawin || '—'}` }),
+        ]),
+        el('button', { type: 'button', class: 'btn', text: 'Tutup', onclick: null }),
+      ]),
+      el('p', { class: 'detail-warn', text: 'Data pribadi. Jangan ditampilkan di layar umum atau dibagikan tanpa dasar tugas.' }),
+      el('div', { class: 'detail-body' }, [
+        el('section', {}, [el('h4', { text: 'Identitas' }), el('dl', { class: 'kv2' }, [
+          ...row('NIK', el('span', { class: 'nikrow' }, [nikEl, nikBtn])), ...row('No. KK', r.noKK),
+          ...row('Tempat, tanggal lahir', [r.tempatLahir, r.tglLahir].filter(Boolean).join(', ')),
+          ...row('Jenis kelamin', jkLabel(r.jk)), ...row('Agama', r.agama), ...row('Golongan darah', r.golDarah),
+        ])]),
+        el('section', {}, [el('h4', { text: 'Kependudukan' }), el('dl', { class: 'kv2' }, [
+          ...row('Status perkawinan', r.statusKawin ? r.statusKawin + (r.status && /^CERAI/.test(r.statusKawin) ? ` (${W.statusLabel(r.status)})` : '') : ''),
+          ...row('Hubungan dalam keluarga', r.hubungan), ...row('Alamat', r.alamat),
+          ...row('Dusun', r.dusun), ...row('RT / RW', [r.rt, r.rw].filter(Boolean).join(' / ')),
+        ])]),
+        el('section', {}, [el('h4', { text: 'Pendidikan & pekerjaan' }), el('dl', { class: 'kv2' }, [
+          ...row('Pendidikan terakhir', pendLabel(r) === '—' ? '' : pendLabel(r)), ...row('Pekerjaan', r.pekerjaan),
+        ])]),
+        el('section', {}, [el('h4', { text: 'Dokumen' }), el('dl', { class: 'kv2' }, [
+          ...row('KTP-el', kartu(r.ktpWajib, r.ktpSudah, r.ktpBelum, 'Status tidak ada di sumber data')),
+          ...row('KIA', kartu(r.kiaWajib, r.kiaSudah, r.kiaBelum, 'Status tidak ada di sumber data')),
+          ...(r.aplikasi == null ? [] : row('Terdaftar di aplikasi warga', r.aplikasi ? 'Ya' : 'Belum')),
+        ])]),
+        el('section', { class: 'span2' }, [
+          el('h4', { text: `Anggota keluarga dalam KK ini (${keluarga.length})` }),
+          keluarga.length
+            ? el('ul', { class: 'fam' }, keluarga.slice(0, 15).map((m) =>
+                el('li', { class: m === r ? 'me' : '' }, `${m.nama} · ${m.hubungan || '—'} · ${m.usia == null ? '—' : m.usia + ' th'}${m === r ? ' (dipilih)' : ''}`)))
+            : el('p', { class: 't-sub', text: 'Nomor KK tidak terisi.' }),
+        ]),
+      ])
+    );
+    dlg.querySelector('.detail-head .btn').addEventListener('click', () => dlg.close());
+    dlg.showModal();
+  }
 
-    return section('warga', '4', 'Data Digital Warga', insight,
+  /* ---- tabel daftar warga: urut, halaman, klik nama untuk melihat isi ---- */
+  const SORTERS = {
+    nama: (a, b) => a.nama.localeCompare(b.nama, 'id'),
+    usia: (a, b) => (a.usia ?? -1) - (b.usia ?? -1),
+    status: (a, b) => (a.status || '').localeCompare(b.status || ''),
+    pend: (a, b) => (a.pend ?? -1) - (b.pend ?? -1),
+    dusun: (a, b) => (a.dusun || '').localeCompare(b.dusun || '', 'id'),
+  };
+  function wargaTable(rows, all) {
+    const PER = 20, box = el('div', {});
+    const draw = () => {
+      const srt = SORTERS[wf.sort.key];
+      const sorted = [...rows].sort((a, b) => srt(a, b) * wf.sort.dir);
+      const pages = Math.max(1, Math.ceil(sorted.length / PER));
+      wf.page = clamp(wf.page, 0, pages - 1);
+      const view = sorted.slice(wf.page * PER, wf.page * PER + PER);
+      const th = (label, key) => {
+        const on = wf.sort.key === key;
+        const b = el('button', { type: 'button', class: 'sortbtn', text: label + (on ? (wf.sort.dir > 0 ? ' ▲' : ' ▼') : '') });
+        b.addEventListener('click', () => { wf.sort = { key, dir: on ? -wf.sort.dir : 1 }; wf.page = 0; draw(); });
+        return el('th', { scope: 'col', 'aria-sort': on ? (wf.sort.dir > 0 ? 'ascending' : 'descending') : 'none' }, b);
+      };
+      const rowsEl = view.map((r) => {
+        const open = el('button', { type: 'button', class: 'linkbtn', text: r.nama });
+        open.addEventListener('click', () => openDetail(r, all));
+        return el('tr', {}, [
+          el('td', {}, open), el('td', { class: 'nowrap mono', text: W.maskNik(r.nik) }), el('td', { text: r.jk || '—' }),
+          el('td', { class: 'num', text: r.usia == null ? '—' : String(r.usia) }),
+          el('td', { class: 'nowrap', text: r.status ? W.statusLabel(r.status) : '—' }), el('td', { text: pendLabel(r) }), el('td', { text: r.dusun || '—' }),
+          el('td', { class: 'nowrap' }, kartuCell(r.ktpWajib, r.ktpSudah, r.ktpBelum)), el('td', { class: 'nowrap' }, kartuCell(r.kiaWajib, r.kiaSudah, r.kiaBelum)),
+        ]);
+      });
+      const first = sorted.length ? wf.page * PER + 1 : 0;
+      const prev = el('button', { type: 'button', class: 'btn', text: 'Sebelumnya' }), next = el('button', { type: 'button', class: 'btn', text: 'Berikutnya' });
+      prev.disabled = wf.page === 0; next.disabled = wf.page >= pages - 1;
+      prev.addEventListener('click', () => { wf.page--; draw(); });
+      next.addEventListener('click', () => { wf.page++; draw(); });
+      box.replaceChildren(
+        el('div', { class: 'tablewrap tall' }, el('table', {}, [
+          el('thead', {}, el('tr', {}, [th('Nama', 'nama'), el('th', { scope: 'col', text: 'NIK' }), el('th', { scope: 'col', text: 'JK' }), th('Usia', 'usia'), th('Status', 'status'), th('Pendidikan', 'pend'), th('Dusun', 'dusun'), el('th', { scope: 'col', text: 'KTP-el' }), el('th', { scope: 'col', text: 'KIA' })])),
+          el('tbody', {}, rowsEl.length ? rowsEl : el('tr', {}, el('td', { colspan: 9, text: 'Tidak ada warga yang cocok dengan filter.' }))),
+        ])),
+        el('div', { class: 'pager' }, [el('span', { text: `${fmt(first)}–${fmt(Math.min(sorted.length, wf.page * PER + PER))} dari ${fmt(sorted.length)} warga` }), el('span', { class: 'pager-btns' }, [prev, next])])
+      );
+    };
+    draw();
+    return box;
+  }
+
+  /* ---- hasil: tile, grafik, tabel mengikuti filter ---- */
+  function renderResults(host, rows, all) {
+    const a = W.aggregate(rows), tot = all.length;
+    const cov = (c, label, nama) => tile({
+      label, value: c.wajib ? pct(c.pct, 1) : '—',
+      sev: c.wajib && c.belum ? (c.pct < 75 ? 'critical' : 'warning') : null,
+      sub: c.wajib ? `${fmt(c.sudah)} dari ${fmt(c.wajib)} wajib · ${fmt(c.belum)} belum` : `Tidak ada warga wajib ${nama} di hasil ini (atau status tidak ada di sumber data)`,
+    });
+    const statusItems = a.status.map((s) => ({ label: s.label, value: s.value, color: W.STATUS_COLOR[s.key] }));
+    const covRows = [['KTP-el', a.ktp], ['KIA', a.kia]];
+    const tbl = (head, items) => [head, items.map((i) => [i.label, fmt(i.value), pct(a.n ? (i.value / a.n) * 100 : 0)]), { numCols: [1, 2] }];
+
+    host.replaceChildren(
       tiles(
-        tile({ label: st === 'semua' ? 'Jumlah penduduk' : `Penduduk ${lab}`, value: fmt(w.penduduk), sub: `${fmt(w.lakiLaki)} laki-laki · ${fmt(w.perempuan)} perempuan` }),
-        tile({ label: 'Kepala keluarga', value: fmt(w.kepalaKeluarga), sub: `rata-rata ${nfd(1).format(w.penduduk / (w.kepalaKeluarga || 1))} jiwa per KK` }),
-        tile({ label: 'Pertumbuhan 30 hari', value: signed(net), sub: 'lahir + datang − meninggal − pindah' }),
-        tile({ label: 'Data lengkap (rata-rata)', value: pct(avg(w.kelengkapan.map((k) => k.value)), 0), sub: `${w.kelengkapan.length} indikator kelengkapan` }),
+        tile({ label: 'Warga sesuai filter', value: fmt(a.n), sub: `${pct(tot ? (a.n / tot) * 100 : 0, 1)} dari ${fmt(tot)} warga · ${fmt(a.lakiLaki)} laki-laki · ${fmt(a.perempuan)} perempuan` }),
+        tile({ label: 'Kartu Keluarga terkait', value: fmt(a.kk), sub: `rata-rata ${nfd(1).format(a.n / (a.kk || 1))} warga per KK` }),
+        cov(a.ktp, 'Cakupan KTP-el', 'KTP-el'),
+        cov(a.kia, 'Cakupan KIA', 'KIA'),
+        tile({ label: 'Kualitas data', value: pct(avg(a.kualitas.map((k) => k.value)), 1), sev: a.nikGanda ? 'critical' : null, sub: a.nikGanda ? `${fmt(a.nikGanda)} NIK ganda` : 'Tidak ada NIK ganda' }),
       ),
       grid2(
+        card({ title: 'Menurut status perkawinan', sub: 'Menikah, lajang, janda (perempuan cerai), duda (laki-laki cerai)', build: (h) => hbarChart(h, { items: statusItems }), table: tbl(['Status', 'Warga', 'Persen'], a.status) }),
         card({
-          title: 'Jumlah warga menurut status perkawinan', sub: st === 'semua' ? 'Seluruh warga desa' : `Status ${lab} disorot, perbandingan tetap seluruh warga`,
-          build: (h) => {
-            stackChart(h, { parts, rows: komposisiRows, active: st === 'semua' ? null : [st] });
-            h.append(kv, el('p', { class: 't-sub', style: 'margin-top:10px', text: `Lajang = belum kawin, termasuk ${fmt(w.anakLajang)} anak usia di bawah 18 tahun. Cerai = cerai hidup dan cerai mati.` }));
-          },
-          table: [['Status', 'Jumlah', 'Persen'], w.komposisi.map((c) => [c.label, fmt(c.value), pct((c.value / totalSemua) * 100)]), { numCols: [1, 2] }],
+          title: 'Kepemilikan KTP-el dan KIA', sub: 'KTP-el wajib usia 17+ atau sudah kawin; KIA untuk anak < 17 yang belum kawin · ≥ 90% baik, 75–89% waspada, < 75% kritis',
+          build: (h) => h.append(el('div', { class: 'meters' }, covRows.map(([n, c]) => (c.wajib
+            ? meterEl({ label: `${n} (${fmt(c.sudah)} dari ${fmt(c.wajib)} wajib)`, value: c.pct, valText: pct(c.pct, 1), sev: covSev(c.pct) })
+            : el('p', { class: 't-sub', text: `${n}: tidak ada warga wajib di hasil ini.` }))))),
+          table: [['Kartu', 'Wajib', 'Sudah', 'Belum', 'Cakupan'], covRows.map(([n, c]) => [n, fmt(c.wajib), fmt(c.sudah), fmt(c.belum), c.wajib ? pct(c.pct, 1) : '—']), { numCols: [1, 2, 3, 4] }],
         }),
-        card({
-          title: 'Mutasi penduduk', sub: `30 hari terakhir (tidak mengikuti filter periode)${st === 'semua' ? '' : ` · ${lab}`}`,
-          build: (h) => h.append(el('dl', { class: 'kv' }, [
-            el('dt', { text: 'Kelahiran' }), el('dd', { text: fmt(mt.lahir) }),
-            el('dt', { text: 'Pendatang' }), el('dd', { text: fmt(mt.datang) }),
-            el('dt', { text: 'Kematian' }), el('dd', { text: fmt(mt.meninggal) }),
-            el('dt', { text: 'Pindah keluar' }), el('dd', { text: fmt(mt.pindah) }),
-            el('dt', { text: 'Selisih bersih' }), el('dd', { text: signed(net) }),
-          ])),
-        })
       ),
       grid2(
+        card({ title: 'Menurut kelompok usia', sub: 'Jumlah warga', build: (h) => hbarChart(h, { items: a.usia }), table: tbl(['Kelompok usia', 'Warga', 'Persen'], a.usia) }),
+        card({ title: 'Menurut strata pendidikan', sub: 'Pendidikan terakhir tercatat', build: (h) => hbarChart(h, { items: a.pend }), table: tbl(['Strata', 'Warga', 'Persen'], a.pend) }),
+      ),
+      grid2(
+        card({ title: 'Menurut dusun', sub: 'Jumlah warga', build: (h) => hbarChart(h, { items: a.dusun }), table: tbl(['Dusun', 'Warga', 'Persen'], a.dusun) }),
         card({
-          title: 'Penduduk per dusun', sub: `Jumlah jiwa${st === 'semua' ? '' : ` · ${lab}`}`,
-          build: (h) => hbarChart(h, { items: w.perDusun }),
-          table: [['Dusun', 'Penduduk'], w.perDusun.map((d) => [d.label, fmt(d.value)]), { numCols: [1] }],
+          title: 'Kualitas data kependudukan', sub: 'Kelengkapan isian pada warga di hasil ini',
+          build: (h) => h.append(el('div', { class: 'meters' }, a.kualitas.map((k) => meterEl({ label: k.label, value: k.value, valText: pct(k.value, 1), sev: covSev(k.value) })))),
+          table: [['Indikator', 'Persen'], a.kualitas.map((k) => [k.label, pct(k.value, 1)]), { numCols: [1] }],
         }),
-        card({
-          title: 'Penduduk menurut kelompok usia', sub: `Jumlah jiwa${st === 'semua' ? '' : ` · ${lab}`}`,
-          build: (h) => hbarChart(h, { items: w.perUsia }),
-          table: [['Kelompok usia', 'Penduduk'], w.perUsia.map((d) => [d.label, fmt(d.value)]), { numCols: [1] }],
-        })
       ),
       card({
-        title: 'Kelengkapan data digital', sub: '% warga dengan data sudah lengkap · ≥ 90% baik, 75–89% waspada, < 75% kritis',
-        build: (h) => h.append(el('div', { class: 'meters cols2' }, w.kelengkapan.map((k) => meterEl({ label: k.label, value: k.value, valText: pct(k.value), sev: lengkap(k.value) })))),
-        table: [['Indikator', 'Persen'], w.kelengkapan.map((k) => [k.label, pct(k.value)]), { numCols: [1] }],
+        title: 'Daftar warga', sub: 'Klik nama untuk melihat isi data. NIK disamarkan di tabel.',
+        build: (h) => h.append(wargaTable(rows, all)),
       })
     );
+  }
+
+  /* ---- kartu filter ---- */
+  function filterCard(onChange) {
+    const f = wf.f, chips = [];
+    const chip = (label, isOn, onClick, color) => {
+      const b = el('button', { type: 'button', class: 'chip', 'aria-pressed': 'false' }, [color ? el('i', { class: 'dot', style: 'background:' + color }) : null, label]);
+      b.addEventListener('click', () => { onClick(); wf.page = 0; refresh(); onChange(); });
+      chips.push({ b, isOn });
+      return b;
+    };
+    const toggle = (arr, k) => (arr.includes(k) ? arr.splice(arr.indexOf(k), 1) : arr.push(k));
+    const usiaMin = el('input', { type: 'number', min: 0, max: 150, inputmode: 'numeric', 'aria-label': 'Usia minimum', placeholder: 'dari' });
+    const usiaMax = el('input', { type: 'number', min: 0, max: 150, inputmode: 'numeric', 'aria-label': 'Usia maksimum', placeholder: 'sampai' });
+    const sameUsia = (g) => f.usia && f.usia[0] === g.min && f.usia[1] === g.max;
+    const kartu = el('select', { 'aria-label': 'Kepemilikan kartu' }, W.KARTU_OPSI.map((o) => el('option', { value: o.key, text: o.label })));
+    const q = el('input', { type: 'search', placeholder: 'Cari nama, NIK, atau No. KK', 'aria-label': 'Cari nama, NIK, atau nomor KK', autocomplete: 'off' });
+    const reset = el('button', { type: 'button', class: 'btn', text: 'Hapus semua filter' });
+
+    const refresh = () => {
+      chips.forEach(({ b, isOn }) => b.setAttribute('aria-pressed', String(isOn())));
+      usiaMin.value = f.usia && !W.USIA_GROUPS.some(sameUsia) ? f.usia[0] : f.usia && W.USIA_GROUPS.some(sameUsia) ? f.usia[0] : '';
+      usiaMax.value = f.usia ? (f.usia[1] >= 150 ? '' : f.usia[1]) : '';
+      kartu.value = f.kartu;
+      reset.disabled = !W.isFiltered(f);
+    };
+    const onRange = () => {
+      const lo = usiaMin.value === '' ? null : clamp(Number(usiaMin.value), 0, 150), hi = usiaMax.value === '' ? null : clamp(Number(usiaMax.value), 0, 150);
+      f.usia = lo == null && hi == null ? null : [Math.min(lo ?? 0, hi ?? 150), Math.max(lo ?? 0, hi ?? 150)];
+      wf.page = 0;
+      chips.forEach(({ b, isOn }) => b.setAttribute('aria-pressed', String(isOn())));
+      reset.disabled = !W.isFiltered(f);
+      onChange();
+    };
+    usiaMin.addEventListener('change', onRange); usiaMax.addEventListener('change', onRange);
+    kartu.addEventListener('change', () => { f.kartu = kartu.value; wf.page = 0; refresh(); onChange(); });
+    let t;
+    q.value = f.q;
+    q.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { f.q = q.value; wf.page = 0; refresh(); onChange(); }, 200); });
+    reset.addEventListener('click', () => { Object.assign(f, W.emptyFilter()); q.value = ''; wf.page = 0; refresh(); onChange(); });
+
+    const group = (title, ...kids) => el('div', { class: 'fgroup', role: 'group', 'aria-label': title }, [el('div', { class: 'f-title', text: title }), el('div', { class: 'f-ctl' }, kids)]);
+    const node = el('article', { class: 'card filters' }, [
+      group('Status perkawinan', ...W.STATUS.map((s) => chip(s.label, () => f.status.includes(s.key), () => toggle(f.status, s.key), W.STATUS_COLOR[s.key]))),
+      group('Usia (tahun)', ...W.USIA_GROUPS.map((g) => chip(g.label, () => sameUsia(g), () => { f.usia = sameUsia(g) ? null : [g.min, g.max]; })), el('span', { class: 'range' }, [usiaMin, ' – ', usiaMax])),
+      group('Strata pendidikan', ...W.PEND_GROUPS.map((g) => chip(g.label, () => f.pend.includes(g.key), () => toggle(f.pend, g.key)))),
+      group('Kepemilikan kartu', kartu),
+      group('Pencarian', q, reset),
+    ]);
+    refresh();
+    return node;
+  }
+
+  /* ---- bilah sumber data + impor CSV ---- */
+  function sourceBar(rerender) {
+    const m = D.meta.sumberPenduduk, input = el('input', { type: 'file', accept: '.csv,text/csv,text/plain', hidden: true });
+    const report = el('div', { class: 'import-report', hidden: true });
+    const src = m.jenis === 'api' ? `API ${m.url} · ${fmt(m.jumlah)} warga`
+      : m.jenis === 'csv' ? `File ${m.nama} · ${fmt(m.jumlah)} warga (hanya ada di browser ini, tidak diunggah)`
+      : 'Data contoh (sintetis; NIK berawalan 999999 bukan nomor sungguhan)';
+    const btn = el('button', { type: 'button', class: 'btn', text: 'Impor CSV dari SIAK…' });
+    btn.addEventListener('click', () => input.click());
+    input.addEventListener('change', async () => {
+      const file = input.files[0];
+      if (!file) return;
+      const { records, report: r } = W.importCSV(await file.text());
+      input.value = '';
+      report.hidden = false;
+      if (r.error) { report.replaceChildren(el('p', { class: 'err', text: 'Gagal membaca file: ' + r.error }), el('p', { class: 't-sub', text: `Kolom di file: ${(r.tidakDikenali || []).join(', ') || '(tidak ada)'}` })); return; }
+      const use = el('button', { type: 'button', class: 'btn', text: `Pakai ${fmt(records.length)} data ini` }), cancel = el('button', { type: 'button', class: 'btn', text: 'Batal' });
+      use.addEventListener('click', () => { D.warga.records = records; D.meta.sumberPenduduk = { jenis: 'csv', nama: file.name, jumlah: records.length }; Object.assign(wf.f, W.emptyFilter()); wf.page = 0; rerender(); });
+      cancel.addEventListener('click', () => { report.hidden = true; });
+      const alasan = Object.entries(r.alasan).map(([k, v]) => `${fmt(v)} ${k}`).join(', ');
+      report.replaceChildren(
+        el('p', {}, [el('b', { text: `${fmt(r.baris)} baris dibaca: ${fmt(r.diimpor)} diimpor, ${fmt(r.dilewati)} dilewati` }), alasan ? ` (${alasan})` : '', '.']),
+        el('p', { class: 't-sub', text: `Kolom dikenali: ${r.dikenali.join(', ')}.` }),
+        r.hilang.length ? el('p', { class: 't-sub', text: `Kolom tidak ada di file: ${r.hilang.join(', ')}. Bagian yang bergantung pada kolom ini akan kosong atau tidak dihitung.` }) : null,
+        r.tidakDikenali.length ? el('p', { class: 't-sub', text: `Kolom tidak dipakai: ${r.tidakDikenali.join(', ')}.` }) : null,
+        el('div', { class: 'row-btns' }, [use, cancel])
+      );
+    });
+    return el('article', { class: 'card sourcebar' }, [
+      el('div', { class: 'src-line' }, [el('span', {}, [el('b', { text: 'Sumber data warga: ' }), src]), el('span', { class: 'row-btns' }, [btn, input])]),
+      m.galat ? el('p', { class: 'err', text: m.galat }) : null,
+      el('p', { class: 't-sub', text: 'Berisi data pribadi (nama, NIK). Tampilan TV hanya menampilkan angka gabungan, tanpa nama. Impor dibaca langsung di browser ini; yang dibaca: file CSV (di SIAK/Excel pilih Simpan sebagai CSV).' }),
+      report,
+    ]);
+  }
+
+  function secWarga() {
+    const all = wargaAll(), a = W.aggregate(all);
+    const results = el('div', { class: 'warga-results' }), count = el('p', { class: 'warga-count', 'aria-live': 'polite' });
+    const update = () => {
+      const rows = W.applyFilter(all, wf.f);
+      count.textContent = W.isFiltered(wf.f) ? `Menampilkan ${fmt(rows.length)} dari ${fmt(all.length)} warga · filter: ${[W.describeFilter(wf.f), wf.f.q.trim() && `cari "${wf.f.q.trim()}"`].filter(Boolean).join(' · ')}` : `Menampilkan seluruh ${fmt(all.length)} warga (tanpa filter)`;
+      renderResults(results, rows, all);
+      try {
+        const u = new URL(location.href);
+        W.filterToParams(wf.f, u.searchParams);
+        history.replaceState(null, '', u);
+      } catch (e) { /* mis. file:// di beberapa browser */ }
+    };
+    const insight = all.length
+      ? `${fmt(a.n)} warga dalam ${fmt(a.kk)} KK. Cakupan KTP-el ${a.ktp.pct == null ? '—' : pct(a.ktp.pct, 1)}, KIA ${a.kia.pct == null ? '—' : pct(a.kia.pct, 1)}. Gunakan filter di bawah untuk melihat kelompok tertentu dan isi datanya.`
+      : 'Belum ada data warga.';
+    const sec = section('warga', '4', 'Data Kependudukan (SIAK)', insight, sourceBar(() => { render(); }), filterCard(update), count, results);
+    update();
+    return sec;
   }
 
   const sevByUsage = (v, warn, crit) => (v >= crit ? 'critical' : v >= warn ? 'warning' : 'ok');
@@ -624,14 +830,14 @@
 
   /* ============================== ringkasan & peringatan ============================== */
   function overview() {
-    const sel = periodStats(D.mobile.selesaiHarian, 'sum', 'pengajuan'), kio = periodStats(D.kiosk.transaksiHarian, 'sum', 'transaksiKiosk');
+    const sel = periodStats(D.mobile.selesaiHarian), kio = periodStats(D.kiosk.transaksiHarian);
     const total = sel.c + kio.c, prev = sel.p + kio.p;
     const chg = changePct(total, prev);
-    const alerts = buildAlerts(state.status);
+    const alerts = buildAlerts();
     const nCrit = alerts.filter((a) => a.sev === 'critical').length;
 
     const hero = el('article', { class: 'card hero' }, [
-      el('div', { class: 'hero-label', text: `Layanan digital terselesaikan · ${state.days} hari terakhir${state.status === 'semua' ? '' : ' · warga ' + statusLabel(state.status).toLowerCase()}` }),
+      el('div', { class: 'hero-label', text: `Layanan digital terselesaikan · ${state.days} hari terakhir` }),
       el('div', { class: 'hero-val', text: fmt(total) }),
       el('div', { class: 'hero-sub' }, [
         el('span', { style: 'font-weight:600;color:var(--' + (chg >= 0 ? 'good-text' : 'crit-text') + ')', text: (chg >= 0 ? '▲ +' : '▼ −') + fmt1(Math.abs(chg)) + '%' }),
@@ -683,11 +889,15 @@
 
   function setup() {
     document.getElementById('desa-name').textContent = `${D.meta.desa} · ${D.meta.kecamatan} · ${D.meta.kabupaten}`;
-    if (D.meta.dataContoh) document.getElementById('demo-badge').hidden = false;
+    if (D.meta.dataContoh) {
+      const bd = document.getElementById('demo-badge');
+      bd.hidden = false;
+      bd.textContent = D.meta.sumberPenduduk.jenis === 'contoh' ? 'Data contoh' : 'Selain data warga: data contoh';
+    }
     document.getElementById('updated').textContent =
       'Diperbarui ' + new Date(D.meta.diperbarui).toLocaleString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     document.getElementById('footer').textContent = D.meta.dataContoh
-      ? 'Angka pada halaman ini adalah data contoh. Hubungkan data.js ke aplikasi sebenarnya untuk menampilkan data desa.'
+      ? 'Angka pada halaman ini adalah data contoh. Hubungkan data.js ke aplikasi sebenarnya (dan data warga ke SIAK) untuk menampilkan data desa.'
       : '';
 
     const jump = document.getElementById('jump');
@@ -707,27 +917,6 @@
       per.append(b);
     });
 
-    // filter status perkawinan (berlaku untuk aplikasi warga, transaksi kiosk, dan data warga)
-    const stBox = document.getElementById('status');
-    STATUS.forEach(({ key, label }) => {
-      const b = el('button', { type: 'button', role: 'radio', 'aria-checked': String(key === state.status), 'data-s': key }, [
-        check(), key !== 'semua' ? el('i', { class: 'dot', style: 'background:' + STATUS_COLOR[key] }) : null, label,
-      ]);
-      b.addEventListener('click', () => {
-        if (state.status === key) return;
-        state.status = key;
-        stBox.querySelectorAll('button').forEach((x) => x.setAttribute('aria-checked', String(x.dataset.s === key)));
-        try {
-          const u = new URL(location.href);
-          if (key === 'semua') u.searchParams.delete('status'); else u.searchParams.set('status', key);
-          history.replaceState(null, '', u);
-        } catch (e) { /* mis. dibuka dari file:// di beberapa browser */ }
-        app.classList.add('is-loading');
-        setTimeout(() => { render(); app.classList.remove('is-loading'); }, 120);
-      });
-      stBox.append(b);
-    });
-
     const root = document.documentElement, btn = document.getElementById('theme-btn');
     const dark = () => (root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches);
     const sync = () => { btn.setAttribute('aria-pressed', String(dark())); btn.textContent = dark() ? 'Mode terang' : 'Mode gelap'; };
@@ -740,6 +929,5 @@
     sync();
   }
 
-  setup();
-  render();
+  ready.then(() => { setup(); render(); });
 })();

@@ -57,48 +57,31 @@ window.DashLib = (() => {
   }
   const pill = (sev, text) => el('span', { class: 'pill' }, [statusIcon(sev), el('b', { text: text || SEV_LABEL[sev] })]);
 
-  /* ---------- filter status perkawinan ---------- */
-  const STATUS = [
-    { key: 'semua', label: 'Semua' },
-    { key: 'menikah', label: 'Menikah' },
-    { key: 'lajang', label: 'Lajang' },
-    { key: 'cerai', label: 'Cerai' },
-  ];
-  const STATUS_KEYS = ['menikah', 'lajang', 'cerai'];
-  const STATUS_COLOR = { menikah: 'var(--st1)', lajang: 'var(--st2)', cerai: 'var(--st3)' };
-  const statusLabel = (k) => (STATUS.find((s) => s.key === k) || STATUS[0]).label;
-  const pickStatus = (st) => (st === 'semua' ? STATUS_KEYS : [st]);
-  const parseStatus = (v) => (STATUS.some((s) => s.key === v) ? v : 'semua');
+  /* ---------- data warga (SIAK) ---------- */
+  const W = window.WargaLib;
+  const wargaAll = () => W.enrich(D.warga.records);
+  D.meta.sumberPenduduk = { jenis: 'contoh' };
 
-  /** Porsi aktivitas (0..1) untuk status terpilih; 1 bila "semua". */
-  const share = (kind, st) => sum(pickStatus(st).map((k) => D.porsiStatus[kind][k]));
-  /** Skalakan deret harian menurut porsi status. */
-  const scaled = (arr, kind, st) => (st === 'semua' ? arr : arr.map((v) => v * share(kind, st)));
-
-  /** Data warga untuk status terpilih (jumlah ketiga status dijumlahkan bila "semua"). */
-  function wargaView(st) {
-    const W = D.warga, S = (k) => W.perStatus[k], ks = pickStatus(st);
-    const tot = (f) => sum(ks.map((k) => f(S(k))));
-    const penduduk = tot((x) => x.penduduk);
-    return {
-      penduduk,
-      kepalaKeluarga: tot((x) => x.kepalaKeluarga),
-      lakiLaki: tot((x) => x.lakiLaki),
-      perempuan: tot((x) => x.perempuan),
-      terdaftarApp: tot((x) => x.terdaftarApp),
-      perDusun: W.dusun.map((label, i) => ({ label, value: tot((x) => x.perDusun[i]) })),
-      perUsia: W.kelompokUsia.map((label, i) => ({ label, value: tot((x) => x.perUsia[i]) })),
-      kelengkapan: W.indikator.map((label, i) => ({ label, value: tot((x) => x.kelengkapan[i] * x.penduduk) / (penduduk || 1) })),
-      mutasi: ['lahir', 'meninggal', 'datang', 'pindah'].reduce((o, m) => ({ ...o, [m]: tot((x) => x.mutasi30Hari[m]) }), {}),
-      // komposisi selalu menampilkan ketiga status (untuk perbandingan), apa pun filternya
-      komposisi: STATUS_KEYS.map((k) => ({ key: k, label: statusLabel(k), value: S(k).penduduk })),
-      anakLajang: S('lajang').perUsia[0] + S('lajang').perUsia[1],
-    };
+  /** Ambil data warga dari API bila DASHBOARD_CONFIG.apiPenduduk diisi. Gagal → data sebelumnya tetap dipakai dan galat dicatat. */
+  async function loadWarga() {
+    const url = (window.DASHBOARD_CONFIG || {}).apiPenduduk;
+    if (!url) return;
+    try {
+      const res = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const j = await res.json();
+      const rec = Array.isArray(j) ? j : j && j.records;
+      if (!Array.isArray(rec)) throw new Error('format data tidak dikenali (harus array data warga)');
+      D.warga.records = rec;
+      D.meta.sumberPenduduk = { jenis: 'api', url, jumlah: rec.length, diambil: new Date().toISOString() };
+    } catch (e) {
+      const prev = D.meta.sumberPenduduk;
+      D.meta.sumberPenduduk = prev.jenis === 'api'
+        ? { ...prev, galat: `Pembaruan terakhir gagal (${e.message}); memakai data dari ${new Date(prev.diambil).toLocaleTimeString('id-ID')}.` }
+        : { jenis: 'contoh', galat: `Gagal mengambil ${url}: ${e.message}. Memakai data contoh.` };
+    }
   }
-  const pengaduanView = (st) => {
-    const P = D.mobile.pengaduanPerStatus, ks = pickStatus(st);
-    return { terbuka: sum(ks.map((k) => P[k].terbuka)), lebih7Hari: sum(ks.map((k) => P[k].lebih7Hari)) };
-  };
+  const ready = loadWarga();
 
   /* ---------- blangko ---------- */
   function blangkoStats() {
@@ -117,7 +100,7 @@ window.DashLib = (() => {
   }
 
   /* ---------- peringatan otomatis ("perlu perhatian") ---------- */
-  function buildAlerts(st = 'semua') {
+  function buildAlerts() {
     const A = [];
     const add = (sev, title, detail, sec, secName) => A.push({ sev, title, detail, sec, secName });
     D.kiosk.perangkat.forEach((k) => {
@@ -137,9 +120,14 @@ window.DashLib = (() => {
     });
     const rusakAset = sum(D.aset.kategori.map((c) => c.rusak));
     if (rusakAset) add('warning', `${fmt(rusakAset)} unit aset rusak`, 'Menunggu keputusan perbaikan atau penghapusan', 'aset', 'Aset');
-    const pg = pengaduanView(st), tag = st === 'semua' ? '' : ` (${statusLabel(st).toLowerCase()})`;
-    if (pg.lebih7Hari) add('warning', `${pg.lebih7Hari} pengaduan warga${tag} belum ditangani > 7 hari`, `${pg.terbuka} pengaduan masih terbuka`, 'mobile', 'Aplikasi warga');
-    wargaView(st).kelengkapan.filter((k) => k.value < 75).forEach((k) => add('critical', `Data warga${tag}: ${k.label} baru ${pct(k.value, 0)}`, 'Perlu percepatan pendataan', 'warga', 'Data warga'));
+    if (D.mobile.pengaduanLebih7Hari) add('warning', `${D.mobile.pengaduanLebih7Hari} pengaduan warga belum ditangani > 7 hari`, `${D.mobile.pengaduanTerbuka} pengaduan masih terbuka`, 'mobile', 'Aplikasi warga');
+    // data kependudukan: selalu dihitung dari seluruh warga, tidak mengikuti filter di layar
+    const a = W.aggregate(wargaAll());
+    if (a.ktp.belum) add(a.ktp.pct < 75 ? 'critical' : 'warning', `${fmt(a.ktp.belum)} warga wajib KTP-el belum punya`, `Cakupan KTP-el ${pct(a.ktp.pct, 1)} dari ${fmt(a.ktp.wajib)} warga wajib`, 'warga', 'Data warga');
+    if (a.kia.belum) add(a.kia.pct < 75 ? 'critical' : 'warning', `${fmt(a.kia.belum)} anak belum punya KIA`, `Cakupan KIA ${pct(a.kia.pct, 1)} dari ${fmt(a.kia.wajib)} anak wajib`, 'warga', 'Data warga');
+    if (a.nikGanda) add('critical', `${fmt(a.nikGanda)} NIK ganda di data kependudukan`, 'Periksa dan perbaiki di SIAK', 'warga', 'Data warga');
+    const nikBuruk = a.kualitas[0].value < 100 ? Math.round(((100 - a.kualitas[0].value) / 100) * a.n) : 0;
+    if (nikBuruk) add('warning', `${fmt(nikBuruk)} NIK tidak valid (bukan 16 digit)`, 'Periksa dan perbaiki di SIAK', 'warga', 'Data warga');
     const order = { critical: 0, warning: 1 };
     return A.sort((a, b) => order[a.sev] - order[b.sev]);
   }
@@ -147,6 +135,6 @@ window.DashLib = (() => {
   return {
     D, nf, nfd, fmt, fmt1, pct, compact, rupiah, sum, avg, clamp, slice, changePct, dShort, dLong,
     el, SEV_LABEL, statusIcon, pill, blangkoStats, buildAlerts,
-    STATUS, STATUS_KEYS, STATUS_COLOR, statusLabel, parseStatus, share, scaled, wargaView, pengaduanView,
+    W, wargaAll, ready, reload: loadWarga,
   };
 })();

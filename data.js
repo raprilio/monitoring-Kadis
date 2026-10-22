@@ -41,6 +41,127 @@
   const pengajuan = seri((i) => Math.max(0, Math.round((30 + i * 0.05) * hariKerja[i] + noise(6))));
   const selesai = pengajuan.map((v) => Math.round(v * clamp(0.86 + noise(0.06), 0.6, 1)));
 
+
+  /* ---------- data warga contoh (sintetis; NIK/KK berawalan 999999 = bukan nomor sungguhan) ---------- */
+  function buatWarga() {
+    const pick = (a) => a[Math.floor(rnd() * a.length)];
+    const wpick = (items, w) => {
+      let t = rnd() * w.reduce((x, y) => x + y, 0);
+      for (let i = 0; i < items.length; i++) { t -= w[i]; if (t <= 0) return items[i]; }
+      return items[items.length - 1];
+    };
+    const NAMA_L = ['Ahmad', 'Budi', 'Slamet', 'Agus', 'Hendra', 'Joko', 'Wahyu', 'Eko', 'Dedi', 'Rudi', 'Bambang', 'Sugeng', 'Andi', 'Fajar', 'Rizki', 'Dimas', 'Yusuf', 'Imam', 'Hasan', 'Taufik'];
+    const NAMA_P = ['Siti', 'Sri', 'Ani', 'Dewi', 'Rina', 'Wati', 'Lestari', 'Fitri', 'Yuni', 'Endang', 'Nur', 'Aminah', 'Maya', 'Putri', 'Ratna', 'Intan', 'Ayu', 'Tutik', 'Sari', 'Lilis'];
+    const BELAKANG = ['Santoso', 'Wijaya', 'Rahayu', 'Hidayat', 'Saputra', 'Utami', 'Prasetyo', 'Kurniawan', 'Setiawan', 'Handayani', 'Nugroho', 'Pratama', 'Susanto', 'Wibowo', 'Purnomo', 'Aryani', 'Permana', 'Yulianti', 'Mulyadi', 'Suryani'];
+    const DUSUN = ['Dusun Krajan', 'Dusun Sumber', 'Dusun Tegalan', 'Dusun Karanganyar'];
+    const PEKERJAAN = ['Petani/Pekebun', 'Buruh Harian Lepas', 'Wiraswasta', 'Pedagang', 'Karyawan Swasta', 'PNS', 'Guru', 'Perangkat Desa', 'Mengurus Rumah Tangga', 'Belum/Tidak Bekerja', 'Pensiunan'];
+
+    // strata pendidikan tertinggi menurut kelompok umur (bobot untuk 10 jenjang SIAK)
+    const pendOf = (usia) => {
+      if (usia < 7) return 0;
+      if (usia < 13) return 1;
+      if (usia < 16) return 2;
+      if (usia < 19) return wpick([2, 3], [0.15, 0.85]);
+      const w = usia < 23 ? [0, 0, 0.04, 0.2, 0.62, 0.03, 0.05, 0.06, 0, 0]
+        : usia < 40 ? [0, 0.01, 0.06, 0.18, 0.55, 0.02, 0.05, 0.12, 0.01, 0]
+        : usia < 60 ? [0.02, 0.06, 0.25, 0.25, 0.34, 0.01, 0.02, 0.05, 0.01, 0]
+        : [0.1, 0.2, 0.4, 0.15, 0.1, 0, 0.01, 0.04, 0, 0];
+      return wpick([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], w);
+    };
+    const pekerjaanOf = (usia, jk, pend) => {
+      if (usia < 7) return 'Belum/Tidak Bekerja';
+      if (usia < 23 && pend <= 4 && rnd() < 0.8) return 'Pelajar/Mahasiswa';
+      if (usia >= 65) return wpick(['Pensiunan', 'Petani/Pekebun', 'Belum/Tidak Bekerja', 'Mengurus Rumah Tangga'], [0.2, 0.4, 0.25, 0.15]);
+      if (jk === 'P') return wpick(PEKERJAAN, [0.1, 0.06, 0.1, 0.1, 0.08, 0.03, 0.05, 0.01, 0.4, 0.05, 0.02]);
+      return wpick(PEKERJAAN, [0.3, 0.2, 0.15, 0.1, 0.12, 0.03, 0.02, 0.03, 0, 0.04, 0.01]);
+    };
+    const lahir = (usia) => {
+      const d = new Date(today);
+      d.setFullYear(d.getFullYear() - usia);
+      d.setDate(d.getDate() - Math.floor(rnd() * 365));
+      return ymd(d);
+    };
+
+    const out = [];
+    let nikSeq = 1;
+    const orang = (kk, usia, jk, statusKawin, hubungan) => {
+      const tgl = lahir(usia);
+      const [y, m, d] = tgl.split('-');
+      const nik = '999999' + String(Number(d) + (jk === 'P' ? 40 : 0)).padStart(2, '0') + m + y.slice(2) + String(nikSeq++).padStart(4, '0');
+      const pend = pendOf(usia);
+      const pernah = statusKawin !== 'BELUM KAWIN';
+      const ktpWajib = usia >= 17 || pernah, kiaWajib = usia < 17 && !pernah;
+      const r = {
+        nik, noKK: kk.noKK, nama: pick(jk === 'L' ? NAMA_L : NAMA_P) + (rnd() < 0.35 ? ' ' + pick(jk === 'L' ? NAMA_L : NAMA_P) : '') + ' ' + kk.marga,
+        jk, tglLahir: tgl, tempatLahir: pick(['Kabupaten Contoh', 'Kota Contoh', 'Kabupaten Sebelah']),
+        statusKawin, pend, pekerjaan: pekerjaanOf(usia, jk, pend),
+        agama: wpick(['Islam', 'Kristen', 'Katolik', 'Hindu'], [0.95, 0.03, 0.01, 0.01]),
+        golDarah: wpick(['O', 'A', 'B', 'AB'], [0.4, 0.28, 0.25, 0.07]),
+        hubungan, dusun: kk.dusun, rt: String(kk.rt).padStart(2, '0'), rw: String(kk.rw).padStart(2, '0'),
+        alamat: `${kk.dusun}, RT ${String(kk.rt).padStart(2, '0')}/RW ${String(kk.rw).padStart(2, '0')}`,
+        ktpEl: ktpWajib ? (rnd() < (usia < 20 ? 0.65 : 0.96) ? 'sudah' : 'belum') : null,
+        kia: kiaWajib ? (rnd() < (usia < 5 ? 0.55 : 0.8) ? 'sudah' : 'belum') : null,
+        aplikasi: usia < 12 ? false : usia < 18 ? rnd() < 0.2 : usia < 60 ? rnd() < 0.72 : rnd() < 0.3,
+      };
+      out.push(r);
+      return r;
+    };
+    const anak = (kk, usiaIbu, maks) => {
+      const n = Math.floor(rnd() * (maks + 1));
+      for (let i = 0; i < n; i++) {
+        const batas = Math.min(usiaIbu - 19, 30);
+        if (batas < 0) break;
+        orang(kk, Math.floor(rnd() * (batas + 1)), rnd() < 0.5 ? 'L' : 'P', 'BELUM KAWIN', 'ANAK');
+      }
+    };
+    const cerai = () => (rnd() < 0.75 ? 'CERAI MATI' : 'CERAI HIDUP');
+
+    for (let n = 1; n <= 1312; n++) {
+      const kk = {
+        noKK: '999999' + String(n).padStart(10, '0'), marga: pick(BELAKANG),
+        dusun: wpick(DUSUN, [1480, 1125, 905, 776]), rt: 1 + Math.floor(rnd() * 4), rw: 1 + Math.floor(rnd() * 3),
+      };
+      const t = rnd();
+      if (t < 0.55) { // pasangan + anak
+        const u = 26 + Math.floor(rnd() * 38);
+        orang(kk, u, 'L', 'KAWIN', 'KEPALA KELUARGA');
+        const ui = Math.max(18, u - 6 + Math.floor(rnd() * 8));
+        orang(kk, ui, 'P', 'KAWIN', 'ISTRI');
+        anak(kk, ui, 4);
+      } else if (t < 0.65) { // pasangan lansia
+        const u = 60 + Math.floor(rnd() * 26);
+        orang(kk, u, 'L', 'KAWIN', 'KEPALA KELUARGA');
+        const ui = Math.max(55, u - 5 + Math.floor(rnd() * 6));
+        orang(kk, ui, 'P', 'KAWIN', 'ISTRI');
+        if (rnd() < 0.3) orang(kk, 25 + Math.floor(rnd() * 15), rnd() < 0.5 ? 'L' : 'P', 'BELUM KAWIN', 'ANAK');
+      } else if (t < 0.76) { // janda
+        const u = 35 + Math.floor(rnd() * 50);
+        orang(kk, u, 'P', cerai(), 'KEPALA KELUARGA');
+        anak(kk, u, 3);
+      } else if (t < 0.82) { // duda
+        const u = 40 + Math.floor(rnd() * 46);
+        orang(kk, u, 'L', cerai(), 'KEPALA KELUARGA');
+        anak(kk, u - 8, 2);
+      } else if (t < 0.92) { // lajang
+        orang(kk, 19 + Math.floor(rnd() * 22), rnd() < 0.55 ? 'L' : 'P', 'BELUM KAWIN', 'KEPALA KELUARGA');
+      } else { // pasangan muda
+        const u = 20 + Math.floor(rnd() * 11);
+        orang(kk, u, 'L', 'KAWIN', 'KEPALA KELUARGA');
+        const ui = Math.max(18, u - 3 + Math.floor(rnd() * 4));
+        orang(kk, ui, 'P', 'KAWIN', 'ISTRI');
+        anak(kk, ui, 1);
+      }
+    }
+
+    // masalah kualitas data yang sengaja disisipkan, supaya pemantauan kualitas data terlihat bekerja
+    for (let i = 0; i < 7; i++) { const r = out[Math.floor(rnd() * out.length)]; r.nik = r.nik.slice(0, 15); }
+    for (let i = 0; i < 5; i++) { out[Math.floor(rnd() * out.length)].nik = out[Math.floor(rnd() * out.length)].nik; }
+    for (let i = 0; i < 13; i++) out[Math.floor(rnd() * out.length)].noKK = '';
+    out.forEach((r) => { if (rnd() < 0.03) r.pekerjaan = ''; });
+    return out;
+  }
+  const warga = buatWarga();
+
   window.DASHBOARD_DATA = {
     meta: {
       desa: 'Desa Contoh',
@@ -51,15 +172,6 @@
     },
     tanggal,
 
-    // Porsi aktivitas menurut status perkawinan (jumlah tiap baris = 1). Dipakai untuk memecah deret
-    // harian aplikasi warga dan kiosk saat filter status dipilih. Pada data nyata, catat status warga
-    // (dari NIK) di setiap pengguna/transaksi lalu hitung porsi ini dari sana.
-    porsiStatus: {
-      penggunaAktif: { menikah: 0.58, lajang: 0.3, cerai: 0.12 },
-      pengajuan: { menikah: 0.62, lajang: 0.3, cerai: 0.08 },
-      transaksiKiosk: { menikah: 0.55, lajang: 0.37, cerai: 0.08 },
-    },
-
     // 1. Aplikasi Mobile Warga
     mobile: {
       penggunaAktifHarian: seri((i) => Math.round((700 + i * 1.8) * (hariKerja[i] === 1 ? 1 : 0.82) * (1 + noise(0.04)))),
@@ -67,11 +179,9 @@
       selesaiHarian: selesai,
       rating: 4.6,
       jumlahUlasan: 318,
-      pengaduanPerStatus: {
-        menikah: { terbuka: 7, lebih7Hari: 2 },
-        lajang: { terbuka: 4, lebih7Hari: 1 },
-        cerai: { terbuka: 1, lebih7Hari: 0 },
-      },
+      wargaTerdaftar: warga.filter((r) => r.aplikasi).length, // dari data warga contoh; pada data nyata isi dari aplikasi
+      pengaduanTerbuka: 12,
+      pengaduanLebih7Hari: 3,
       // bobot relatif; jumlah per periode = bobot × total pengajuan periode
       pengajuanPerJenis: [
         { label: 'Surat keterangan domisili', bobot: 0.27 },
@@ -123,43 +233,9 @@
       ],
     },
 
-    // 4. Data Digital Warga
-    // Dipecah menurut status perkawinan (kunci: menikah, lajang, cerai). Jumlah "semua" dihitung
-    // dashboard dengan menjumlahkan ketiganya, jadi tidak perlu diisi terpisah.
-    //  - lajang = belum kawin (termasuk anak-anak); cerai = cerai hidup + cerai mati (janda/duda).
-    //  - perDusun / perUsia / kelengkapan mengikuti urutan `dusun` / `kelompokUsia` / `indikator`.
-    //  - kelengkapan = % warga di status itu yang datanya sudah lengkap.
-    warga: {
-      dusun: ['Dusun Krajan', 'Dusun Sumber', 'Dusun Tegalan', 'Dusun Karanganyar'],
-      kelompokUsia: ['0–5 tahun', '6–17 tahun', '18–59 tahun', '60 tahun ke atas'],
-      indikator: [
-        'NIK terverifikasi',
-        'Kartu Keluarga terdigitalisasi',
-        'Dokumen pendukung ter-scan',
-        'Nomor HP tercatat',
-        'Terdaftar di aplikasi warga',
-      ],
-      perStatus: {
-        menikah: {
-          penduduk: 2105, kepalaKeluarga: 1010, lakiLaki: 1050, perempuan: 1055,
-          perDusun: [724, 531, 440, 410], perUsia: [0, 0, 1590, 515],
-          kelengkapan: [98.5, 94.0, 88.0, 90.0, 80.0], terdaftarApp: 1684,
-          mutasi30Hari: { lahir: 0, meninggal: 1, datang: 5, pindah: 4 },
-        },
-        lajang: {
-          penduduk: 1998, kepalaKeluarga: 160, lakiLaki: 1060, perempuan: 938,
-          perDusun: [694, 549, 424, 331], perUsia: [312, 861, 800, 25],
-          kelengkapan: [93.5, 88.0, 80.0, 62.0, 42.0], terdaftarApp: 839,
-          mutasi30Hari: { lahir: 7, meninggal: 1, datang: 5, pindah: 4 },
-        },
-        cerai: {
-          penduduk: 183, kepalaKeluarga: 142, lakiLaki: 41, perempuan: 142,
-          perDusun: [62, 45, 41, 35], perUsia: [0, 0, 114, 69],
-          kelengkapan: [97.0, 90.0, 85.0, 85.0, 70.0], terdaftarApp: 128,
-          mutasi30Hari: { lahir: 0, meninggal: 1, datang: 1, pindah: 1 },
-        },
-      },
-    },
+    // 4. Data kependudukan (SIAK): satu baris per warga (bentuk data: lihat warga.js). Data di bawah SINTETIS.
+    // Ganti dengan hasil impor CSV SIAK di halaman, atau isi lewat API (DASHBOARD_CONFIG.apiPenduduk di config.js).
+    warga: { records: warga },
 
     // 5. Monitoring Server
     server: {
