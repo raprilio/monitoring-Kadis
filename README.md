@@ -15,6 +15,13 @@ Bagian atas: **layanan digital terselesaikan** (angka utama), **status tiap bagi
 
 Filter periode (7 / 30 / 90 hari) berlaku untuk seluruh grafik dan angka tren. Setiap grafik punya tombol **Tabel** dan ada mode terang/gelap.
 
+## Tampilan TV (satu layar, tanpa scroll)
+
+Buka `tv.html`. Semua 6 laporan, angka utama, jam, dan peringatan muat dalam satu layar 16:9 (1920×1080, otomatis diskalakan ke ukuran TV; layar non-16:9 diberi pinggiran kosong). Tanpa klik atau hover, font besar, kursor hilang saat diam. Daftar "Perlu perhatian" berganti halaman otomatis tiap 8 detik, dan tampilan dirender ulang tiap 5 menit.
+
+Parameter URL (opsional): `tv.html?days=7|30|90`, `?theme=light|dark` (bawaan gelap), `?refresh=<menit>`, `?page=<detik>`.
+Pasang di TV: buka di browser layar penuh (F11), misalnya Chrome mode kiosk `chrome --kiosk tv.html`.
+
 ## Menjalankan
 
 Tidak perlu build. Buka `index.html` di browser (atau `python3 -m http.server` lalu buka `http://localhost:8000`).
