@@ -132,9 +132,73 @@ window.DashLib = (() => {
     return A.sort((a, b) => order[a.sev] - order[b.sev]);
   }
 
+
+  /* ---------- statistik periode & kartu KPI (dipakai bersama oleh index.html dan tv.html) ---------- */
+  function periodOf(arr, days, mode = 'sum') {
+    const cur = slice(arr, days), prev = slice(arr, days, days), f = mode === 'sum' ? sum : avg;
+    return { cur, prev, c: f(cur), p: f(prev), chg: changePct(f(cur), f(prev)) };
+  }
+
+  /** Enam kartu KPI (satu per bagian) + angka utama layanan digital. `alerts` = hasil buildAlerts(). */
+  function kpis(days, alerts) {
+    const sevOf = (id) => (alerts.find((a) => a.sec === id) || { sev: 'ok' }).sev; // daftar urut: paling parah dulu
+    const healthSev = (p) => (p >= 90 ? 'ok' : p >= 75 ? 'warning' : 'critical'); // warna cincin = kesehatan angka yang ditampilkan
+    const m = D.mobile, rows = wargaAll(), wa = W.aggregate(rows), n = rows.length;
+    const sel = periodOf(m.selesaiHarian, days), kio = periodOf(D.kiosk.transaksiHarian, days);
+    const aju = periodOf(m.pengajuanHarian, days);
+    const hero = { value: sel.c + kio.c, chg: changePct(sel.c + kio.c, sel.p + kio.p), viaApp: sel.c, viaKiosk: kio.c, rate: (sel.c / (aju.c || 1)) * 100 };
+
+    const online = D.kiosk.perangkat.filter((p) => p.status === 'online').length, nKiosk = D.kiosk.perangkat.length;
+    const cats = D.aset.kategori, t = (k) => sum(cats.map((c) => c[k]));
+    const baik = t('baik'), perb = t('perbaikan'), rusak = t('rusak'), allAset = baik + perb + rusak;
+    const nodes = D.server.perangkat, sehat = nodes.filter((x) => x.status === 'ok').length;
+    const bl = blangkoStats();
+
+    const cards = [
+      { id: 'mobile', icon: 'phone', label: 'Warga di aplikasi', value: fmt(m.wargaTerdaftar), sub: `${pct((m.wargaTerdaftar / (n || 1)) * 100, 0)} dari warga desa`, ring: { value: (m.wargaTerdaftar / (n || 1)) * 100, text: fmt((m.wargaTerdaftar / (n || 1)) * 100) + '%', sev: 'ok' } },
+      { id: 'kiosk', icon: 'kiosk', label: 'Kiosk online', value: `${online}/${nKiosk}`, sub: online < nKiosk ? `${nKiosk - online} kiosk offline` : 'semua kiosk aktif', ring: { value: (online / nKiosk) * 100, text: fmt((online / nKiosk) * 100) + '%', sev: healthSev((online / nKiosk) * 100) } },
+      { id: 'aset', icon: 'box', label: 'Aset kondisi baik', value: pct((baik / allAset) * 100, 0), sub: `${fmt(rusak + perb)} perlu tindakan`, ring: { value: (baik / allAset) * 100, text: fmt((baik / allAset) * 100) + '%', sev: healthSev((baik / allAset) * 100) } },
+      { id: 'warga', icon: 'users', label: 'Warga tercatat', value: fmt(n), sub: 'KTP-el (cincin)', ring: { value: wa.ktp.pct || 0, text: wa.ktp.pct == null ? '—' : fmt(wa.ktp.pct) + '%', sev: wa.ktp.pct == null ? 'ok' : healthSev(wa.ktp.pct) } },
+      { id: 'server', icon: 'server', label: 'Server sehat', value: `${sehat}/${nodes.length}`, sub: `uptime 30 hari ${pct(D.server.uptime30, 2)}`, ring: { value: (sehat / nodes.length) * 100, text: fmt((sehat / nodes.length) * 100) + '%', sev: healthSev((sehat / nodes.length) * 100) } },
+      { id: 'blangko', icon: 'doc', label: 'Blangko terpakai', value: pct((bl.terpakai / bl.total) * 100, 0), sub: `${fmt(bl.rusak)} rusak (${pct((bl.rusak / bl.total) * 100, 1)})`,
+        donut: [{ label: 'Terpakai', value: bl.terpakai, color: 'var(--s1)' }, { label: 'Rusak', value: bl.rusak, color: 'var(--crit)' }, { label: 'Sisa', value: bl.sisa, color: 'var(--neutral-seg)' }] },
+    ];
+    cards.forEach((c) => { c.sev = sevOf(c.id); });
+    return { hero, cards, sevOf };
+  }
+
+  /* ---------- peta desa: titik dan jumlah warga per dusun ---------- */
+  function petaTitik() {
+    const kioskBy = new Map(D.kiosk.perangkat.map((k) => [k.nama, k]));
+    const asetBy = new Map(D.aset.perluPerhatian.map((a) => [a.nama, a]));
+    const out = [];
+    D.peta.titik.forEach((t) => {
+      if (t.jenis === 'kiosk') {
+        const k = kioskBy.get(t.ref);
+        if (!k) return;
+        const sev = k.status !== 'online' ? 'critical' : k.kertasPersen < 20 ? 'warning' : 'ok';
+        out.push({ ...t, tipe: 'Kiosk', sev, detail: k.status !== 'online' ? k.catatan : k.kertasPersen < 20 ? `Kertas tinggal ${k.kertasPersen}%` : `${fmt(k.transaksiHariIni)} transaksi hari ini` });
+      } else if (t.jenis === 'aset') {
+        const a = asetBy.get(t.ref);
+        if (!a) return;
+        out.push({ ...t, tipe: 'Aset', sev: a.kondisi === 'rusak' ? 'critical' : 'warning', detail: `${a.kondisi === 'rusak' ? 'Rusak' : 'Perlu perbaikan'}: ${a.catatan}` });
+      } else {
+        const bad = D.server.perangkat.filter((x) => x.status !== 'ok');
+        out.push({ ...t, tipe: 'Server & jaringan', sev: bad.some((x) => x.status !== 'warning') ? 'critical' : bad.length ? 'warning' : 'ok',
+          detail: bad.length ? bad.map((x) => `${x.nama} ${x.status === 'warning' ? 'waspada' : 'bermasalah'}`).join(', ') : 'Server dan jaringan normal' });
+      }
+    });
+    return out;
+  }
+  const petaCounts = (rows) => {
+    const m = new Map();
+    rows.forEach((r) => m.set(r.dusun, (m.get(r.dusun) || 0) + 1));
+    return m;
+  };
+
   return {
     D, nf, nfd, fmt, fmt1, pct, compact, rupiah, sum, avg, clamp, slice, changePct, dShort, dLong,
     el, SEV_LABEL, statusIcon, pill, blangkoStats, buildAlerts,
-    W, wargaAll, ready, reload: loadWarga,
+    W, wargaAll, ready, reload: loadWarga, periodOf, kpis, petaTitik, petaCounts,
   };
 })();

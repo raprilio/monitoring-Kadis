@@ -5,67 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard Kepala Desa</title>
 <meta name="description" content="Ringkasan laporan seluruh aplikasi desa: aplikasi warga, kiosk, inventaris aset, data warga, server, dan blangko.">
+<link rel="stylesheet" href="theme.css">
 <style>
-  :root {
-    color-scheme: light;
-    --page: #f9f9f7;
-    --surface: #fcfcfb;
-    --ink: #0b0b0b;
-    --ink2: #52514e;
-    --muted: #898781;
-    --grid: #e1e0d9;
-    --axis: #c3c2b7;
-    --border: rgba(11, 11, 11, 0.10);
-    --s1: #2a78d6;
-    --s2: #eb6834;
-    --st1: #eb6834; --st2: #1baf7a; --st3: #6250d6; --st4: #e87ba4; /* menikah, lajang, janda, duda */
-    --neutral-seg: #c3c2b7;
-    --good: #0ca30c;
-    --warn: #fab219;
-    --crit: #d03b3b;
-    --good-text: #006300;
-    --crit-text: #d03b3b;
-    --shadow: 0 4px 16px rgba(11, 11, 11, 0.12);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:where(:not([data-theme="light"])) {
-      color-scheme: dark;
-      --page: #0d0d0d;
-      --surface: #1a1a19;
-      --ink: #f0efec;
-      --ink2: #c3c2b7;
-      --grid: #2c2c2a;
-      --axis: #383835;
-      --border: rgba(255, 255, 255, 0.10);
-      --s1: #3987e5;
-      --s2: #d95926;
-      --st1: #d95926; --st2: #199e70; --st3: #9085e9; --st4: #d55181;
-      --neutral-seg: #55544f;
-      --good-text: #0ca30c;
-      --crit-text: #e66767;
-      --shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-    }
-  }
-  :root[data-theme="dark"] {
-    color-scheme: dark;
-    --page: #0d0d0d;
-    --surface: #1a1a19;
-    --ink: #f0efec;
-    --ink2: #c3c2b7;
-    --grid: #2c2c2a;
-    --axis: #383835;
-    --border: rgba(255, 255, 255, 0.10);
-    --s1: #3987e5;
-    --s2: #d95926;
-    --st1: #d95926; --st2: #199e70; --st3: #9085e9; --st4: #d55181;
-    --neutral-seg: #55544f;
-    --good-text: #0ca30c;
-    --crit-text: #e66767;
-    --shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-  }
-
   * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; scroll-padding-top: 150px; }
+  html { scroll-behavior: smooth; scroll-padding-top: 96px; }
   body {
     margin: 0;
     background: var(--page);
@@ -76,39 +19,57 @@
   :focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; border-radius: 4px; }
   button { font: inherit; color: inherit; }
   h1, h2, h3, p { margin: 0; }
-  .wrap { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
 
-  /* ---------- bar atas ---------- */
-  .topbar {
-    position: sticky; top: 0; z-index: 20;
-    background: var(--page);
-    border-bottom: 1px solid var(--border);
-  }
-  .brand-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0 8px; }
-  .brand h1 { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
-  .brand p { font-size: 13px; color: var(--ink2); }
-  .badge-demo {
-    display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px;
-    border: 1px solid var(--border); font-size: 12px; color: var(--ink2); vertical-align: 1px;
-  }
-  .btn {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
-    padding: 6px 12px; cursor: pointer; font-size: 13px; color: var(--ink);
-  }
+  /* ---------- kerangka: sidebar + isi ---------- */
+  .shell { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: 100vh; }
+  .side { position: sticky; top: 0; height: 100vh; background: var(--side-bg); color: var(--side-ink); display: flex; flex-direction: column; gap: 20px; padding: 18px 14px; overflow: auto; }
+  .side-brand { display: flex; align-items: center; gap: 12px; padding: 0 4px; }
+  .logo svg { stroke-width: 2.2; }
+  .side-brand b { display: block; color: #fff; font-size: 16px; line-height: 1.2; }
+  .side-brand span { font-size: 12px; color: var(--side-muted); }
+  .nav { display: flex; flex-direction: column; gap: 4px; }
+  .nav a { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; color: var(--side-ink); text-decoration: none; font-size: 14px; }
+  .nav a:hover { background: var(--side-hover); }
+  .nav a[aria-current="true"] { color: #fff; font-weight: 600; background: linear-gradient(90deg, rgba(255, 138, 31, .24), rgba(255, 138, 31, .05)); box-shadow: inset 3px 0 0 var(--accent); }
+  .nav .ic { width: 20px; height: 20px; flex: none; }
+  .nav .st { margin-left: auto; line-height: 0; }
+  .nav .st .ico { width: 16px; height: 16px; }
+  .side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+  .side-tv { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 14px; color: var(--accent-ink); background: linear-gradient(135deg, #ffb347, var(--accent)); }
+  .side-src { font-size: 12px; color: var(--side-muted); line-height: 1.4; padding: 0 4px; }
+  .content { min-width: 0; display: flex; flex-direction: column; }
+  .top { position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; padding: 12px 28px; background: color-mix(in srgb, var(--page) 90%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
+  .top h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+  .top p { font-size: 13px; color: var(--ink2); }
+  .top-r { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+  .top-r .lbl { font-size: 13px; color: var(--ink2); }
+  .badge-demo { display: inline-block; margin-left: 8px; padding: 1px 10px; border-radius: 999px; border: 1px solid var(--border); font-size: 12px; font-weight: 400; color: var(--ink2); vertical-align: 2px; }
+  .btn { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 6px 12px; cursor: pointer; font-size: 13px; color: var(--ink); }
   .btn:hover { background: color-mix(in srgb, var(--ink) 6%, var(--surface)); }
   .btn[aria-pressed="true"] { border-color: var(--s1); }
-  .filter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding-bottom: 8px; }
-  .filter-row .lbl { font-size: 13px; color: var(--ink2); }
-  .seg-ctl { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
-  .seg-ctl button {
-    background: none; border: 0; padding: 6px 14px; cursor: pointer; font-size: 13px;
-    display: inline-flex; align-items: center; gap: 6px;
-  }
+  .seg-ctl { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface); }
+  .seg-ctl button { background: none; border: 0; padding: 6px 14px; cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
   .seg-ctl button + button { border-left: 1px solid var(--border); }
   .seg-ctl button:hover { background: color-mix(in srgb, var(--ink) 6%, var(--surface)); }
-  .seg-ctl button[aria-checked="true"] { font-weight: 600; background: color-mix(in srgb, var(--s1) 12%, var(--surface)); }
+  .seg-ctl button[aria-checked="true"] { font-weight: 600; background: color-mix(in srgb, var(--s1) 14%, var(--surface)); }
   .seg-ctl .chk { width: 14px; height: 14px; visibility: hidden; }
   .seg-ctl button[aria-checked="true"] .chk { visibility: visible; }
+  .updated { font-size: 12.5px; color: var(--ink2); }
+  main { padding: 24px 28px 24px; transition: opacity .15s; }
+  footer { padding: 0 28px 40px; font-size: 12.5px; color: var(--ink2); }
+  @media (max-width: 960px) {
+    .shell { grid-template-columns: 1fr; }
+    .side { position: static; height: auto; flex-direction: row; align-items: center; padding: 10px 12px; gap: 10px; overflow-x: auto; }
+    .side-brand span, .side-foot .side-src { display: none; }
+    .side-brand b { white-space: nowrap; font-size: 14px; }
+    .nav { flex-direction: row; }
+    .nav a { white-space: nowrap; padding: 8px 12px; }
+    .nav a .st { display: none; }
+    .side-foot { margin: 0; }
+    .side-tv span { display: none; }
+    .top, main, footer { padding-left: 16px; padding-right: 16px; }
+    html { scroll-padding-top: 130px; }
+  }
 
   /* ---------- data kependudukan ---------- */
   .sourcebar { margin-bottom: 12px; display: flex; flex-direction: column; gap: 6px; }
@@ -163,34 +124,13 @@
   .kv-keys .box { width: 12px; height: 12px; border-radius: 3px; }
   .kv-keys .off { color: var(--muted); font-weight: 400; }
   .meters.cols2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 14px 32px; }
-  .updated { font-size: 12.5px; color: var(--ink2); margin-left: auto; }
-  .jump { display: flex; gap: 6px; overflow-x: auto; padding: 0 0 10px; scrollbar-width: thin; }
-  .jump a {
-    white-space: nowrap; text-decoration: none; color: var(--ink2); font-size: 13px;
-    padding: 4px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface);
-  }
-  .jump a:hover { color: var(--ink); }
 
   /* ---------- ringkasan ---------- */
-  main.wrap { padding-top: 20px; padding-bottom: 48px; transition: opacity .15s; }
-  .status-h { font-size: 14px; font-weight: 600; margin: 16px 0 6px; }
-  .status-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; font-size: 13.5px; }
-  .status-grid a { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 4px; border-top: 1px solid var(--grid); color: var(--ink2); text-decoration: none; border-radius: 4px; }
-  .status-grid a:hover { background: color-mix(in srgb, var(--ink) 5%, var(--surface)); color: var(--ink); }
-  .btn { white-space: nowrap; }
   main.is-loading { opacity: .55; }
   .card {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px;
     min-width: 0;
   }
-  .overview { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 16px; margin-bottom: 8px; }
-  .hero .hero-label { font-size: 14px; color: var(--ink2); }
-  .hero .hero-val { font-size: clamp(48px, 9vw, 72px); line-height: 1.05; font-weight: 600; letter-spacing: -0.02em; margin: 6px 0 4px; }
-  .hero .hero-sub { font-size: 13.5px; color: var(--ink2); }
-  .hero .hero-split { display: flex; flex-wrap: wrap; gap: 4px 20px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--grid); font-size: 13.5px; color: var(--ink2); }
-  .hero .hero-split b { color: var(--ink); font-weight: 600; }
-  .alerts h2 { font-size: 15px; font-weight: 600; }
-  .alerts .alerts-sub { font-size: 13px; color: var(--ink2); margin: 2px 0 10px; }
   .alert-list { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow: auto; }
   .alert-list li { border-top: 1px solid var(--grid); }
   .alert-list a {
@@ -204,6 +144,30 @@
   .alert-list .a-sec { font-size: 12px; color: var(--ink2); white-space: nowrap; }
   .sev { font-size: 12px; font-weight: 600; margin-right: 6px; }
   .all-good { display: flex; gap: 10px; align-items: center; padding: 12px 0; font-size: 14px; }
+
+
+  /* ---------- ringkasan: KPI + peta + peringatan ---------- */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
+  .kpi-grid .hero { grid-column: span 2; display: grid; grid-template-columns: minmax(200px, 0.8fr) minmax(0, 1.2fr); align-items: center; gap: 4px 20px; background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, var(--surface)), var(--surface) 70%); }
+  .hero-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .hero-trend { min-width: 0; }
+  @media (max-width: 700px) { .kpi-grid .hero { grid-template-columns: 1fr; } }
+  .hero .hero-label { font-size: 14px; color: var(--ink2); }
+  .hero .hero-val { font-size: clamp(44px, 5vw, 64px); line-height: 1.05; font-weight: 700; letter-spacing: -0.02em; }
+  .hero .hero-sub { font-size: 14px; color: var(--ink2); }
+  .hero .hero-sub b { color: var(--ink); font-weight: 600; }
+  @media (max-width: 1500px) { .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .kpi-grid .hero { grid-column: span 3; } }
+  @media (max-width: 1000px) { .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .kpi-grid .hero { grid-column: span 2; } }
+  @media (max-width: 560px) { .kpi-grid { grid-template-columns: 1fr; } .kpi-grid .hero { grid-column: span 1; } }
+  .overview2 { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 14px; }
+  @media (max-width: 1100px) { .overview2 { grid-template-columns: 1fr; } }
+  .mapcard { display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px; }
+  .mapframe { aspect-ratio: 160 / 105; border-radius: 12px; overflow: hidden; background: var(--surface2); border: 1px solid var(--border); }
+  .mapcard .note { font-size: 12px; color: var(--muted); }
+  .alerts { display: flex; flex-direction: column; min-height: 0; }
+  .alerts h2 { font-size: 16px; font-weight: 600; }
+  .alerts .alerts-sub { font-size: 13px; color: var(--ink2); margin: 2px 0 10px; }
+  .alerts .alert-list { flex: 1; max-height: 520px; }
 
   /* ---------- seksi ---------- */
   .sec { margin-top: 36px; }
@@ -254,9 +218,7 @@
   .hbar-val { font-size: 13px; font-weight: 600; white-space: nowrap; }
   @media (max-width: 520px) {
     .hbar-row { grid-template-columns: 1fr; }
-    .overview { grid-template-columns: 1fr; }
   }
-  @media (max-width: 860px) { .overview { grid-template-columns: 1fr; } }
 
   .stack-rows { display: flex; flex-direction: column; gap: 12px; }
   .stack-row { border-radius: 6px; }
@@ -286,9 +248,6 @@
   th { color: var(--ink2); font-weight: 500; white-space: nowrap; position: sticky; top: 0; background: var(--surface); }
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   td.nowrap { white-space: nowrap; }
-  .pill { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-  .pill b { font-weight: 600; }
-  .ico { flex: none; }
 
   /* ---------- tooltip ---------- */
   #tip {
@@ -303,7 +262,6 @@
   #tip .tip-val { font-weight: 600; font-size: 13.5px; }
   #tip .tip-name { color: var(--ink2); }
 
-  footer { padding: 0 0 40px; font-size: 12.5px; color: var(--ink2); }
 
   /* tekstur cadangan untuk cetak / forced-colors (identitas tidak bergantung warna saja) */
   @media print, (forced-colors: active) {
@@ -311,40 +269,46 @@
     .stack-seg:nth-child(even) { background-image: repeating-linear-gradient(135deg, rgba(0,0,0,.35) 0 2px, transparent 2px 6px); }
   }
   @media print {
-    .topbar { position: static; }
-    .jump, .btn, .seg-ctl { display: none; }
+    .side, .top .top-r { display: none; }
+    .shell { display: block; }
     .sec { break-inside: avoid-page; }
   }
   @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; } }
 </style>
 </head>
 <body>
-<div class="topbar">
-  <div class="wrap">
-    <div class="brand-row">
-      <div class="brand">
+<div class="shell">
+  <aside class="side" id="side">
+    <div class="side-brand"><span class="logo" id="side-logo"></span><div><b>Monitoring Desa</b><span id="side-desa"></span></div></div>
+    <nav class="nav" id="nav" aria-label="Bagian laporan"></nav>
+    <div class="side-foot">
+      <a class="side-tv" href="tv.html" id="side-tv"></a>
+      <p class="side-src" id="side-src"></p>
+    </div>
+  </aside>
+  <div class="content">
+    <header class="top">
+      <div>
         <h1>Dashboard Kepala Desa <span class="badge-demo" id="demo-badge" hidden>Data contoh</span></h1>
         <p id="desa-name"></p>
       </div>
-      <div style="display:flex;gap:8px"><a class="btn" href="tv.html" style="text-decoration:none">Tampilan TV</a>
-      <button class="btn" id="theme-btn" type="button" aria-pressed="false">Mode gelap</button></div>
-    </div>
-    <div class="filter-row">
-      <span class="lbl" id="periode-lbl">Periode</span>
-      <div class="seg-ctl" role="radiogroup" aria-labelledby="periode-lbl" id="periode"></div>
-      <span class="updated" id="updated"></span>
-    </div>
-    <nav class="jump" aria-label="Loncat ke bagian" id="jump"></nav>
+      <div class="top-r">
+        <span class="lbl" id="periode-lbl">Periode</span>
+        <div class="seg-ctl" role="radiogroup" aria-labelledby="periode-lbl" id="periode"></div>
+        <button class="btn" id="theme-btn" type="button" aria-pressed="false">Mode gelap</button>
+        <span class="updated" id="updated"></span>
+      </div>
+    </header>
+    <main id="app" aria-live="polite"></main>
+    <footer id="footer"></footer>
   </div>
 </div>
-
-<main class="wrap" id="app" aria-live="polite"></main>
-<div class="wrap"><footer id="footer"></footer></div>
 
 <script src="config.js"></script>
 <script src="data.js"></script>
 <script src="warga.js"></script>
 <script src="shared.js"></script>
+<script src="ui.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

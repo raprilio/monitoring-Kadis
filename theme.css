@@ -1,0 +1,123 @@
+/* Tema bersama (index.html dan tv.html): token warna terang/gelap + komponen kartu KPI, cincin, peta, sidebar. */
+:root {
+  color-scheme: light;
+  --page: #eceff8;
+  --surface: #ffffff;
+  --surface2: #f4f6fc;
+  --ink: #0f1830;
+  --ink2: #4a5473;
+  --muted: #6b7592;
+  --grid: #e3e7f2;
+  --axis: #c9d0e4;
+  --border: rgba(15, 24, 48, 0.10);
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --st1: #eb6834; --st2: #1baf7a; --st3: #6250d6; --st4: #e87ba4; /* menikah, lajang, janda, duda */
+  --neutral-seg: #c3c9dc;
+  --good: #0ca30c;
+  --warn: #fab219;
+  --crit: #d03b3b;
+  --good-text: #006300;
+  --crit-text: #d03b3b;
+  --accent: #ff8a1f;
+  --accent-ink: #1a1205;
+  --side-bg: linear-gradient(180deg, #101c3f 0%, #0a1226 100%);
+  --side-ink: #d5def5;
+  --side-muted: #8b9ac0;
+  --side-hover: rgba(255, 255, 255, 0.07);
+  --shadow: 0 8px 28px rgba(15, 24, 48, 0.10);
+  --radius: 16px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --page: #0b1426;
+    --surface: #111d35;
+    --surface2: #16264a;
+    --ink: #e8eefc;
+    --ink2: #aab6d4;
+    --muted: #8391b5;
+    --grid: #1f2e4f;
+    --axis: #2c3d63;
+    --border: rgba(148, 163, 208, 0.16);
+    --s1: #3987e5;
+    --s2: #d95926;
+    --st1: #d95926; --st2: #199e70; --st3: #9085e9; --st4: #d55181;
+    --neutral-seg: #4a5a82;
+    --good-text: #22c55e;
+    --crit-text: #ff6b6b;
+    --shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0b1426;
+  --surface: #111d35;
+  --surface2: #16264a;
+  --ink: #e8eefc;
+  --ink2: #aab6d4;
+  --muted: #8391b5;
+  --grid: #1f2e4f;
+  --axis: #2c3d63;
+  --border: rgba(148, 163, 208, 0.16);
+  --s1: #3987e5;
+  --s2: #d95926;
+  --st1: #d95926; --st2: #199e70; --st3: #9085e9; --st4: #d55181;
+  --neutral-seg: #4a5a82;
+  --good-text: #22c55e;
+  --crit-text: #ff6b6b;
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+/* ---------- status (ikon + label, bukan warna saja) ---------- */
+.pill { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.pill b { font-weight: 600; }
+.ico { flex: none; }
+.good { color: var(--good-text); }
+.bad { color: var(--crit-text); }
+
+/* ---------- logo ---------- */
+.logo { flex: none; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; color: var(--accent-ink); background: linear-gradient(135deg, #ffb347, var(--accent) 55%, #ff6a00); box-shadow: 0 4px 14px rgba(255, 138, 31, .35); }
+.logo svg { width: 24px; height: 24px; }
+
+/* ---------- kartu KPI dengan cincin ---------- */
+.kpi-card {
+  position: relative; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  text-decoration: none; color: inherit; min-width: 0; overflow: hidden;
+}
+.kpi-card::before { content: ""; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 0 3px 3px 0; background: var(--kc, var(--s1)); }
+.kpi-card .k-body { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.kpi-card .k-top { display: flex; align-items: center; gap: 8px; color: var(--ink2); font-size: 13px; }
+.kpi-card .k-top svg { width: 18px; height: 18px; flex: none; }
+.kpi-card .k-val { font-size: 30px; line-height: 1.1; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; }
+.kpi-card .k-sub { font-size: 12.5px; color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kpi-card .k-st { position: absolute; right: 10px; top: 8px; line-height: 0; }
+.kpi-card .k-st .ico { width: 16px; height: 16px; }
+.kpi-card a { color: inherit; }
+a.kpi-card:hover { border-color: color-mix(in srgb, var(--kc, var(--s1)) 55%, var(--border)); }
+.ring { flex: none; display: block; }
+.ring-t { fill: var(--ink); font-weight: 700; font-size: 17px; }
+.donut-big { fill: var(--ink); font-weight: 700; }
+.donut-small { fill: var(--ink2); }
+
+/* ---------- peta desa skematik ---------- */
+.vmap { display: block; width: 100%; height: 100%; }
+.vmap .zone { stroke: var(--axis); stroke-width: .5; stroke-linejoin: round; }
+.vmap .road { fill: none; stroke: color-mix(in srgb, var(--ink) 16%, var(--surface2)); stroke-width: 1.9; stroke-linecap: round; }
+.vmap .road-in { fill: none; stroke: color-mix(in srgb, var(--ink) 34%, var(--surface2)); stroke-width: .35; stroke-linecap: round; stroke-dasharray: 1.6 1.4; }
+.vmap .river { fill: none; stroke: color-mix(in srgb, var(--s1) 38%, var(--surface)); stroke-width: 2.4; stroke-linecap: round; }
+.vmap .zname { fill: var(--ink2); font-size: 3.1px; font-weight: 600; text-anchor: middle; }
+.vmap .zcount { fill: var(--ink); font-size: 4.2px; font-weight: 700; text-anchor: middle; }
+.vmap .mk { cursor: default; outline: none; }
+.vmap .mk .halo { opacity: .28; }
+.vmap .mk.alert .halo { animation: pulse 2.4s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+.vmap .mk.active .halo { opacity: .5; }
+.vmap .mk:focus-visible .shape, .vmap .mk:hover .shape { stroke: var(--ink); }
+.vmap .mk .shape { stroke: var(--surface); stroke-width: .7; }
+.vmap .mk-label { fill: var(--ink); font-size: 3.2px; font-weight: 600; text-anchor: middle; paint-order: stroke; stroke: var(--surface); stroke-width: 1.1px; stroke-linejoin: round; }
+@keyframes pulse { 0% { transform: scale(.7); opacity: .55; } 100% { transform: scale(1.6); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .vmap .mk.alert .halo { animation: none; } }
+.map-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12.5px; color: var(--ink2); }
+.map-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.map-legend svg { width: 14px; height: 14px; flex: none; }

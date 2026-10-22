@@ -2,8 +2,15 @@
 
 Dashboard monitoring untuk Kepala Desa: satu tempat untuk laporan seluruh aplikasi desa, termasuk data kependudukan dari SIAK.
 
-- `index.html`: tampilan rinci (filter, tabel, isi data warga).
-- `tv.html`: tampilan TV satu layar tanpa scroll (hanya angka gabungan, tidak pernah nama/NIK).
+- `index.html`: tampilan rinci (sidebar navigasi, KPI, peta desa, filter, tabel, isi data warga).
+- `tv.html`: tampilan TV satu layar tanpa scroll ("command center": KPI bercincin, peta desa, peringatan; hanya angka gabungan, tidak pernah nama/NIK).
+- `theme.css` (tema terang/gelap), `ui.js` (cincin, donat, kartu KPI, peta), `shared.js`, `warga.js`, `app.js`, `tv.js`, `data.js`, `config.js`.
+
+## Tampilan
+
+Gaya visual mengikuti referensi: sidebar gelap dengan menu bergambar, baris kartu KPI dengan cincin/donat, peta di tengah dengan titik berstatus, dan panel peringatan. Tema terang dan gelap (tombol di kanan atas; TV bawaan gelap). Warna data sudah divalidasi untuk keterbacaan di latar gelap dan terang, dan status selalu memakai ikon + label, tidak hanya warna.
+
+**Peta desa itu skematik, bukan peta sungguhan.** Bentuk dusun dan posisi titik (kiosk, aset bermasalah, balai desa) adalah gambar sederhana dari `peta` di `data.js`. Angka di tiap dusun adalah jumlah warga dari data SIAK; status titik diambil dari data kiosk, aset, dan server. Untuk peta nyata dibutuhkan koordinat lintang/bujur tiap titik dan batas dusun (mis. GeoJSON), lalu peta dasar seperti OpenStreetMap; itu belum ada.
 
 ## Isi dashboard
 

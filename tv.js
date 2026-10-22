@@ -1,16 +1,17 @@
 /*
  * Tampilan TV: satu halaman, tanpa scroll, tanpa interaksi.
- * Parameter URL (opsional): ?days=7|30|90  ?theme=light|dark  ?refresh=<menit>  ?page=<detik pergantian peringatan>
- *   filter data warga (hanya panel 4): ?status=menikah,lajang,janda,duda  ?usia=17-24  ?pend=sd,sma,sarjana  ?kartu=ktp-belum|kia-belum|ktp-sudah|kia-sudah
+ * Parameter URL (opsional): ?days=7|30|90  ?theme=light|dark  ?refresh=<menit>  ?page=<detik pergantian peringatan/peta>
+ *   filter data warga (panel Data Kependudukan dan angka di peta): ?status=menikah,lajang,janda,duda  ?usia=17-24  ?pend=sd,sma,sarjana  ?kartu=ktp-belum|kia-belum|ktp-sudah|kia-sudah
  * Tampilan TV hanya menampilkan angka gabungan, tidak pernah nama atau NIK.
- * Ganti filter status: klik tombol "Filter warga" di pojok kiri atas, atau tombol panah kiri/kanan pada keyboard/remote.
+ * Ganti filter status: klik tombol "Filter warga" di kiri atas, atau tombol panah kiri/kanan pada keyboard/remote.
  */
 (() => {
   'use strict';
   const {
     D, el, fmt, nfd, pct, sum, avg, slice, changePct, dShort, SEV_LABEL, statusIcon, pill, buildAlerts, blangkoStats,
-    W, wargaAll, ready, reload,
+    W, wargaAll, ready, reload, periodOf, kpis, petaTitik, petaCounts,
   } = window.DashLib;
+  const UI = window.DashUI;
 
   const q = new URLSearchParams(location.search);
   const DAYS = [7, 30, 90].includes(Number(q.get('days'))) ? Number(q.get('days')) : 30;
@@ -31,251 +32,69 @@
   fit();
 
   /* ---------- util ---------- */
-  const ps = (arr, mode = 'sum') => {
-    const cur = slice(arr, DAYS), prev = slice(arr, DAYS, DAYS), f = mode === 'sum' ? sum : avg;
-    return { cur, prev, c: f(cur), p: f(prev), chg: changePct(f(cur), f(prev)) };
-  };
   const delta = (v, { unit = '%', goodWhenUp = true } = {}) => {
     if (Math.abs(v) < 0.05) return el('span', { class: 'd', text: '■ stabil' });
     const up = v > 0;
     return el('span', { class: 'd ' + (up === goodWhenUp ? 'good' : 'bad'), text: (up ? '▲ +' : '▼ −') + nfd(1).format(Math.abs(v)) + unit });
   };
-  function kpi({ label, value, unit, sub, dl, key }) {
-    return el('div', { class: 'kpi' }, [
-      el('div', { class: 'k-label' }, [key ? el('i', { style: 'background:' + key }) : null, label]),
-      el('div', { class: 'k-val' }, [value, unit ? el('small', { text: ' ' + unit }) : null]),
-      dl ? el('div', { class: 'k-sub' }, [dl, ' vs ' + DAYS + ' hr']) : null,
-      sub ? el('div', { class: 'k-sub', text: sub }) : null,
-    ]);
-  }
   const mounts = [];
-  function panel(id, num, title, sev, kpis, viz) {
-    return el('section', { class: 'panel', id }, [
-      el('header', {}, [el('span', { class: 'num', text: num }), el('h2', { text: title }), pill(sev)]),
-      el('div', { class: 'kpis' }, kpis),
-      el('div', { class: 'viz' }, viz),
+  function panel(cls, num, title, sev, body, extraHead) {
+    return el('section', { class: 'panel ' + cls, id: cls.split(' ')[0] }, [
+      el('div', { class: 'ph' }, [num ? el('span', { class: 'num', text: num }) : null, el('h2', { text: title }), extraHead || null, sev ? pill(sev) : null]),
+      el('div', { class: 'body' }, body),
     ]);
   }
+  const legend = (items) => el('div', { class: 'legend' }, items.map((i) => el('span', {}, [el('i', { style: 'background:' + i.color }), i.name])));
+  const SEC = [['mobile', '1', 'phone', 'Aplikasi warga'], ['kiosk', '2', 'kiosk', 'Kiosk'], ['aset', '3', 'box', 'Aset'], ['warga', '4', 'users', 'Data kependudukan'], ['server', '5', 'server', 'Server'], ['blangko', '6', 'doc', 'Blangko']];
 
   /** Grafik area satu seri; digambar setelah masuk DOM supaya ukurannya terukur. */
   function areaChart(dates, values, label) {
     const host = el('div', { class: 'chart', role: 'img', 'aria-label': label });
     mounts.push(() => {
-      const W = host.clientWidth, H = host.clientHeight;
-      if (W < 50 || H < 50) return;
-      const m = { l: 56, r: 86, t: 12, b: 28 }, iw = W - m.l - m.r, ih = H - m.t - m.b, n = values.length;
+      const W_ = host.clientWidth, H = host.clientHeight;
+      if (W_ < 50 || H < 40) return;
+      const m = { l: 46, r: 64, t: 8, b: 24 }, iw = W_ - m.l - m.r, ih = H - m.t - m.b, n = values.length;
       const max = Math.max(...values), top = Math.ceil((max * 1.1) / 100) * 100 || 10;
       const x = (i) => m.l + (i / (n - 1)) * iw, y = (v) => m.t + ih - (v / top) * ih;
-      const svg = el('svg:svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H });
-      [0, top / 2, top].forEach((t) =>
-        svg.append(
-          el('svg:line', { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), class: t === 0 ? 'axis-l' : 'grid-l' }),
-          el('svg:text', { x: m.l - 10, y: y(t) + 6, 'text-anchor': 'end', class: 'tick', text: fmt(t) })
-        )
-      );
+      const svg = el('svg:svg', { viewBox: `0 0 ${W_} ${H}`, width: W_, height: H });
+      [0, top].forEach((t) => svg.append(
+        el('svg:line', { x1: m.l, x2: W_ - m.r, y1: y(t), y2: y(t), class: t === 0 ? 'axis-l' : 'grid-l' }),
+        el('svg:text', { x: m.l - 8, y: y(t) + 5, 'text-anchor': 'end', class: 'tick', text: fmt(t) })
+      ));
       svg.append(
         el('svg:text', { x: m.l, y: H - 4, class: 'tick', text: dShort(dates[0]) }),
-        el('svg:text', { x: W - m.r, y: H - 4, class: 'tick', 'text-anchor': 'end', text: dShort(dates[n - 1]) })
+        el('svg:text', { x: W_ - m.r, y: H - 4, class: 'tick', 'text-anchor': 'end', text: dShort(dates[n - 1]) })
       );
       const d = values.map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join('');
       svg.append(
-        el('svg:path', { d: d + `L${x(n - 1).toFixed(1)} ${y(0)}L${x(0).toFixed(1)} ${y(0)}Z`, style: 'fill:var(--s1)', 'fill-opacity': 0.12 }),
-        el('svg:path', { d, fill: 'none', style: 'stroke:var(--s1)', 'stroke-width': 3, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }),
-        el('svg:circle', { cx: x(n - 1), cy: y(values[n - 1]), r: 6, style: 'fill:var(--s1);stroke:var(--surface);stroke-width:3' }),
-        el('svg:text', { x: x(n - 1) + 14, y: y(values[n - 1]) + 7, class: 'endlabel', text: fmt(values[n - 1]) })
+        el('svg:path', { d: d + `L${x(n - 1).toFixed(1)} ${y(0)}L${x(0).toFixed(1)} ${y(0)}Z`, style: 'fill:var(--s1)', 'fill-opacity': 0.14 }),
+        el('svg:path', { d, fill: 'none', style: 'stroke:var(--s1)', 'stroke-width': 2.5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }),
+        el('svg:circle', { cx: x(n - 1), cy: y(values[n - 1]), r: 5, style: 'fill:var(--s1);stroke:var(--surface);stroke-width:2.5' }),
+        el('svg:text', { x: x(n - 1) + 10, y: y(values[n - 1]) + 6, class: 'endlabel', text: fmt(values[n - 1]) })
       );
       host.replaceChildren(svg);
     });
     return host;
   }
-  const legend = (items) => el('div', { class: 'legend' }, items.map((i) => el('span', {}, [el('i', { style: 'background:' + i.color }), i.name])));
 
-  /* ---------- panel per laporan ---------- */
-  function pMobile(sev) {
-    const m = D.mobile;
-    const aktif = ps(m.penggunaAktifHarian, 'avg'), aju = ps(m.pengajuanHarian), sel = ps(m.selesaiHarian);
-    const rate = (sel.c / (aju.c || 1)) * 100, ratePrev = (sel.p / (aju.p || 1)) * 100;
-    return panel('mobile', '1', 'Aplikasi Warga', sev, [
-      kpi({ label: 'Pengguna harian', value: fmt(aktif.c), dl: delta(aktif.chg) }),
-      kpi({ label: 'Pengajuan selesai', value: fmt(rate), unit: '%', dl: delta(rate - ratePrev, { unit: ' poin' }) }),
-      kpi({ label: 'Pengaduan terbuka', value: fmt(m.pengaduanTerbuka), sub: m.pengaduanLebih7Hari ? `${m.pengaduanLebih7Hari} lewat 7 hari` : 'semua < 7 hari' }),
-    ], [areaChart(slice(D.tanggal, DAYS), aktif.cur, 'Pengguna aktif per hari')]);
-  }
-
-  function pKiosk(sev) {
-    const k = D.kiosk, tr = ps(k.transaksiHarian);
-    const online = k.perangkat.filter((p) => p.status === 'online').length;
-    const rows = k.perangkat.map((p) => {
-      const on = p.status === 'online';
-      return el('div', { class: 'rowline', style: 'grid-template-columns: 26px 1fr auto auto' }, [
-        statusIcon(on ? 'ok' : 'critical'),
-        el('span', { class: 'n', text: p.nama.replace('Kiosk ', '') }),
-        el('span', { class: 'v', text: on ? `${fmt(p.transaksiHariIni)} transaksi` : 'Offline' }),
-        p.kertasPersen < 20 ? pill('warning', `Kertas ${p.kertasPersen}%`) : el('span', { class: 'n', text: `Kertas ${p.kertasPersen}%` }),
-      ]);
+  /* ---------- rel samping ---------- */
+  function renderRail(K) {
+    const rail = document.getElementById('rail');
+    rail.replaceChildren(el('div', { class: 'logo' }, UI.icon('shield', 26)));
+    SEC.forEach(([id, n, ic]) => {
+      const sev = K.sevOf(id);
+      rail.append(el('div', { class: 'r', title: SEC.find((s) => s[0] === id)[3] }, [el('span', { class: 'n', text: n }), UI.icon(ic, 28), statusIcon(sev)]));
     });
-    return panel('kiosk', '2', 'Kiosk', sev, [
-      kpi({ label: 'Kiosk online', value: `${online}/${k.perangkat.length}`, sub: online < k.perangkat.length ? `${k.perangkat.length - online} offline` : 'semua aktif' }),
-      kpi({ label: 'Transaksi', value: fmt(tr.c), dl: delta(tr.chg) }),
-    ], rows);
   }
 
-  function pAset(sev) {
-    const cats = D.aset.kategori, t = (k) => sum(cats.map((c) => c[k]));
-    const baik = t('baik'), perb = t('perbaikan'), rusak = t('rusak'), all = baik + perb + rusak;
-    const parts = [
-      { name: 'Baik', v: baik, color: 'var(--good)' },
-      { name: 'Perlu perbaikan', v: perb, color: 'var(--warn)' },
-      { name: 'Rusak', v: rusak, color: 'var(--crit)' },
-    ];
-    const butuh = (c) => c.perbaikan + c.rusak;
-    const topCats = [...cats].sort((a, b) => butuh(b) / (b.baik + butuh(b)) - butuh(a) / (a.baik + butuh(a))).slice(0, 3);
-    const catRows = topCats.map((c) =>
-      el('div', { class: 'rowline', style: 'grid-template-columns: 215px 1fr 110px; font-size:19px' }, [
-        el('span', { class: 'n', text: c.nama }),
-        el('div', { class: 'bar' }, parts.map((p, i) => { const v = [c.baik, c.perbaikan, c.rusak][i]; return v ? el('div', { class: 'seg', style: `flex:${v} 1 0;background:${p.color}` }) : null; })),
-        el('span', { class: 'v', text: `${butuh(c)} dari ${c.baik + butuh(c)}` }),
-      ])
-    );
-    return panel('aset', '3', 'Inventaris Aset', sev, [
-      kpi({ label: 'Total aset', value: fmt(all), unit: 'unit' }),
-      kpi({ label: 'Nilai aset (Rp)', value: nfd(1).format(sum(cats.map((c) => c.nilai)) / 1e9), unit: 'miliar' }),
-      kpi({ label: 'Kondisi baik', value: fmt((baik / all) * 100), unit: '%' }),
-    ], [
-      el('div', { class: 'bar', style: 'height:26px;margin-top:6px' }, parts.map((p) => el('div', { class: 'seg', style: `flex:${p.v} 1 0;background:${p.color}` }))),
-      legend(parts.map((p) => ({ name: `${p.name} ${fmt(p.v)}`, color: p.color }))),
-      el('div', { class: 'k-sub', style: 'margin-top:8px', text: 'Kategori yang paling banyak perlu tindakan (perbaikan + rusak)' }),
-      ...catRows,
-    ]);
-  }
-
-  function pWarga(sev) {
-    const all = wargaAll(), rows = W.applyFilter(all, filter), w = W.aggregate(rows);
-    const mx = Math.max(...w.dusun.map((d) => d.value), 1);
-    const dusunRows = w.dusun.slice(0, 4).map((d) =>
-      el('div', { class: 'rowline', style: 'grid-template-columns: 190px 1fr 80px' }, [
-        el('span', { class: 'n', text: d.label }),
-        el('div', { style: 'display:flex' }, el('div', { class: 'hfill', style: `width:${(d.value / mx) * 100}%;background:var(--s1)` })),
-        el('span', { class: 'v', text: fmt(d.value) }),
-      ])
-    );
-    const comp = el('div', { class: 'bar', style: 'height:22px;margin-top:4px' },
-      w.status.map((c) => (c.value ? el('div', { class: 'seg', style: `flex:${c.value} 1 0;background:${W.STATUS_COLOR[c.key]}` }) : null)));
-    const compLegend = el('div', { class: 'legend', style: 'font-size:17px;gap:4px 14px' }, w.status.map((c) =>
-      el('span', {}, [el('i', { style: 'background:' + W.STATUS_COLOR[c.key] }), `${c.label} ${fmt(c.value)}`])));
-    const covKpi = (label, c) => kpi({ label, value: c.wajib ? fmt(c.pct) : '—', unit: c.wajib ? '%' : '', sub: c.wajib ? `${fmt(c.belum)} belum punya` : 'tidak ada data' });
-    return panel('warga', '4', 'Data Kependudukan', sev, [
-      kpi({ label: W.isFiltered(filter) ? 'Warga (filter)' : 'Warga', value: fmt(w.n), sub: `${fmt(w.kk)} KK` }),
-      covKpi('KTP-el', w.ktp),
-      covKpi('KIA', w.kia),
-    ], [comp, compLegend, ...dusunRows]);
-  }
-
-  function pServer(sev) {
-    const s = D.server, cpu = ps(s.cpu, 'avg'), ram = ps(s.ram, 'avg');
-    const rows = s.perangkat.map((n) => {
-      const sv = n.disk >= 90 ? 'critical' : n.disk >= 75 ? 'warning' : 'ok';
-      const fillc = sv === 'critical' ? 'var(--crit)' : sv === 'warning' ? 'var(--warn)' : 'var(--s1)';
-      return el('div', { class: 'rowline', style: 'grid-template-columns: 160px 1fr 170px' }, [
-        el('span', { class: 'n', text: n.nama }),
-        el('div', { class: 'meter', style: '--fillc:' + fillc }, el('i', { style: `width:${n.disk}%` })),
-        el('span', { class: 'v', style: 'display:flex;justify-content:flex-end;gap:8px' }, [sv !== 'ok' ? statusIcon(sv) : null, `Disk ${n.disk}%`]),
-      ]);
-    });
-    return panel('server', '5', 'Monitoring Server', sev, [
-      kpi({ label: 'Uptime 30 hari', value: nfd(2).format(s.uptime30), unit: '%' }),
-      kpi({ label: 'CPU', value: fmt(cpu.c), unit: '%', dl: delta(cpu.c - cpu.p, { unit: ' poin', goodWhenUp: false }) }),
-      kpi({ label: 'RAM', value: fmt(ram.c), unit: '%', dl: delta(ram.c - ram.p, { unit: ' poin', goodWhenUp: false }) }),
-    ], [
-      ...rows,
-      el('div', { class: 'foot' }, [
-        'Backup: ', el('b', { text: s.backupTerakhir.status === 'berhasil' ? 'berhasil' : 'GAGAL' }), ` (${s.backupTerakhir.waktu}) · SSL: `, el('b', { text: `${s.sslSisaHari} hari lagi` }),
-      ]),
-    ]);
-  }
-
-  function pBlangko(sev) {
-    const { B, rows, total, terpakai, rusak, sisa } = blangkoStats();
-    const parts = [
-      { key: 'terpakai', color: 'var(--s1)' },
-      { key: 'rusak', color: 'var(--crit)' },
-      { key: 'sisa', color: 'var(--neutral-seg)' },
-    ];
-    const lines = rows.map((r) =>
-      el('div', { class: 'rowline', style: 'grid-template-columns: 215px 1fr 76px; font-size:19px' }, [
-        el('span', { class: 'n', text: r.nama.replace('Kartu Identitas Anak (KIA)', 'KIA') }),
-        el('div', { class: 'bar' }, parts.map((p) => (r[p.key] ? el('div', { class: 'seg', style: `flex:${r[p.key]} 1 0;background:${p.color}` }) : null))),
-        r.rusakCetak > B.ambangRusakPersen ? pill('warning', pct(r.rusakCetak, 1)) : el('span', { class: 'v', text: pct(r.rusakCetak, 1) }),
-      ])
-    );
-    return panel('blangko', '6', 'Monitoring Blangko', sev, [
-      kpi({ label: 'Terpakai', value: fmt(terpakai), key: 'var(--s1)', sub: `${pct((terpakai / total) * 100, 0)} dari ${fmt(total)}` }),
-      kpi({ label: 'Rusak', value: fmt(rusak), key: 'var(--crit)', sub: `${pct((rusak / total) * 100, 1)} dari total` }),
-      kpi({ label: 'Sisa stok', value: fmt(sisa), key: 'var(--neutral-seg)', sub: `${pct((sisa / total) * 100, 0)} dari total` }),
-    ], [el('div', { class: 'k-sub', text: 'Per jenis · angka kanan = % rusak dari yang dicetak' }), ...lines]);
-  }
-
-  /* ---------- peringatan ---------- */
-  let pageTimer = null;
-  function renderTicker(alerts) {
-    const box = document.getElementById('ticker');
-    const nCrit = alerts.filter((a) => a.sev === 'critical').length, nWarn = alerts.length - nCrit;
-    const list = el('div', { class: 't-list' });
-    const PER = 3, pages = Math.max(1, Math.ceil(alerts.length / PER));
-    let page = 0;
-    const show = () => {
-      list.replaceChildren(
-        ...(alerts.length
-          ? alerts.slice(page * PER, page * PER + PER).map((a) =>
-              el('div', { class: 't-item' }, [
-                statusIcon(a.sev),
-                el('div', { style: 'min-width:0' }, [
-                  el('div', { class: 'a-title', text: `${SEV_LABEL[a.sev]} · ${a.title}` }),
-                  el('div', { class: 'a-detail', text: `${a.secName} — ${a.detail}` }),
-                ]),
-              ])
-            )
-          : [el('div', { class: 't-ok' }, [statusIcon('ok'), 'Semua laporan dalam batas normal.'])])
-      );
-    };
-    box.replaceChildren(
-      el('div', { class: 't-count' }, [
-        el('div', { class: 't-title', text: 'Perlu perhatian' }),
-        el('div', { class: 't-sub' }, [
-          el('span', {}, [statusIcon('critical'), `${nCrit} kritis`]),
-          el('span', {}, [statusIcon('warning'), `${nWarn} waspada`]),
-          pages > 1 ? el('span', { id: 'pg', text: `1/${pages}` }) : null,
-        ]),
-      ]),
-      list
-    );
-    show();
-    clearInterval(pageTimer);
-    if (pages > 1) {
-      pageTimer = setInterval(() => {
-        list.classList.add('fade');
-        setTimeout(() => {
-          page = (page + 1) % pages;
-          show();
-          document.getElementById('pg').textContent = `${page + 1}/${pages}`;
-          list.classList.remove('fade');
-        }, 350);
-      }, PAGE_SEC * 1000);
-    }
-  }
-
-  /* ---------- render ---------- */
-  function render() {
-    const alerts = buildAlerts();
-    const sevOf = (id) => (alerts.find((a) => a.sec === id) || { sev: 'ok' }).sev; // urut: paling parah di depan
-
-    const sel = ps(D.mobile.selesaiHarian), kio = ps(D.kiosk.transaksiHarian);
-    const chg = changePct(sel.c + kio.c, sel.p + kio.p);
+  /* ---------- header ---------- */
+  function renderHead(K) {
+    const h = K.hero;
     document.getElementById('hero').replaceChildren(
       el('div', { class: 'h-label', text: `Layanan digital terselesaikan · ${DAYS} hari terakhir` }),
       el('div', { class: 'h-row' }, [
-        el('span', { class: 'h-val', text: fmt(sel.c + kio.c) }),
-        el('span', { class: 'h-delta ' + (chg >= 0 ? 'good' : 'bad'), text: (chg >= 0 ? '▲ +' : '▼ −') + nfd(1).format(Math.abs(chg)) + '%' }),
+        el('span', { class: 'h-val', text: fmt(h.value) }),
+        el('span', { class: 'h-delta ' + (h.chg >= 0 ? 'good' : 'bad'), text: (h.chg >= 0 ? '▲ +' : '▼ −') + nfd(1).format(Math.abs(h.chg)) + '%' }),
       ])
     );
     document.getElementById('desa').textContent = `${D.meta.desa} · ${D.meta.kecamatan} · ${D.meta.kabupaten}`;
@@ -285,14 +104,165 @@
     const flt = document.getElementById('flt');
     flt.textContent = 'Filter warga: ' + (W.describeFilter(filter) || 'semua');
     flt.style.setProperty('--fc', filter.status.length === 1 ? W.STATUS_COLOR[filter.status[0]] : 'var(--muted)');
+  }
 
+  /* ---------- panel kependudukan ---------- */
+  const covSev = (p) => (p >= 90 ? 'ok' : p >= 75 ? 'warning' : 'critical');
+  function pWarga(sev, a) {
+    const items = a.status.map((s) => ({ label: s.label, value: s.value, color: W.STATUS_COLOR[s.key] }));
+    const total = a.n || 1;
+    const leg = el('div', { class: 'siak-leg' }, items.map((i) =>
+      el('div', { class: 'rowline' }, [el('i', { style: 'background:' + i.color }), el('span', { class: 'n', text: i.label }), el('span', { class: 'v', text: fmt(i.value) }), el('span', { class: 'v pc', text: pct((i.value / total) * 100, 0) })])));
+    const cov = (label, c) => el('div', { class: 'ringbox' }, [
+      UI.ring({ value: c.pct || 0, size: 78, stroke: 10, sev: c.wajib ? covSev(c.pct) : 'ok', text: c.wajib ? fmt(c.pct) + '%' : '—', label: `${label}: ${c.wajib ? pct(c.pct, 1) : 'tidak ada data'}` }),
+      el('div', { class: 't' }, [el('b', { text: label }), c.wajib ? `${fmt(c.belum)} belum punya` : 'tidak ada data']),
+    ]);
+    const mx = Math.max(...a.usia.map((u) => u.value), 1);
+    const usia = a.usia.map((u) => el('div', { class: 'rowline', style: 'grid-template-columns: 122px 1fr 56px' }, [
+      el('span', { class: 'n', text: u.label }),
+      el('div', { style: 'display:flex' }, el('div', { class: 'hfill', style: `width:${(u.value / mx) * 100}%;background:var(--s1)` })),
+      el('span', { class: 'v', text: fmt(u.value) }),
+    ]));
+    return panel('warga', '4', 'Data Kependudukan', sev, [
+      el('div', { class: 'siak-top' }, [UI.donut({ items, size: 168, thickness: 22, center: [fmt(a.n), W.isFiltered(filter) ? 'sesuai filter' : 'warga'], bigSize: 30, smallSize: 16, label: 'Komposisi status perkawinan' }), leg]),
+      el('div', { class: 'rings' }, [cov('KTP-el', a.ktp), cov('KIA', a.kia)]),
+      el('div', { class: 'sub', text: 'Menurut kelompok usia' }),
+      ...usia,
+    ]);
+  }
+
+  /* ---------- peta ---------- */
+  let mapTimer = null, alertTimer = null;
+  function renderMap(rows, sev) {
+    const points = petaTitik();
+    const watch = points.filter((p) => p.sev !== 'ok');
+    const cyc = watch.length ? watch : points;
+    let i = 0;
+    const host = el('div', { class: 'map-svg' }), info = el('div', { class: 'map-info' });
+    const draw = () => {
+      const p = cyc[i % cyc.length];
+      host.replaceChildren(UI.villageMap({ peta: D.peta, counts: petaCounts(rows), points, active: p.id, slice: true }));
+      info.replaceChildren(
+        el('div', { class: 'tp', text: p.tipe }), el('div', { class: 't', text: p.nama }),
+        el('div', {}, pill(p.sev)), el('div', { class: 'd', text: p.detail })
+      );
+    };
+    draw();
+    clearInterval(mapTimer);
+    if (cyc.length > 1) mapTimer = setInterval(() => { i++; draw(); }, PAGE_SEC * 1000);
+    const nWatch = watch.length;
+    return el('section', { class: 'panel map', id: 'peta' }, [
+      host,
+      el('div', { class: 'map-title' }, ['Peta Desa (skematik)', el('span', { class: 'sub', text: `${nWatch} dari ${points.length} titik perlu perhatian` })]),
+      info,
+      el('div', { class: 'map-leg' }, [UI.mapLegend(), el('div', { class: 'sub', style: 'margin-top:4px', text: 'Angka di peta = warga per dusun' })]),
+    ]);
+  }
+
+  /* ---------- peringatan ---------- */
+  function pAlerts(alerts) {
+    const nCrit = alerts.filter((a) => a.sev === 'critical').length, nWarn = alerts.length - nCrit;
+    const PER = 6, pages = Math.max(1, Math.ceil(alerts.length / PER));
+    let page = 0;
+    const list = el('div', { class: 'alert-list' }), pg = el('span', { class: 'pg', text: pages > 1 ? `1/${pages}` : '' });
+    const show = () => list.replaceChildren(...(alerts.length
+      ? alerts.slice(page * PER, page * PER + PER).map((a) => el('div', { class: 'a-item' }, [statusIcon(a.sev), el('div', { style: 'min-width:0' }, [
+          el('div', { class: 'a-title', text: `${SEV_LABEL[a.sev]} · ${a.title}` }),
+          el('div', { class: 'a-detail', text: `${a.secName} — ${a.detail}` }),
+        ])]))
+      : [el('div', { class: 't-ok' }, [statusIcon('ok'), 'Semua laporan dalam batas normal.'])]));
+    show();
+    clearInterval(alertTimer);
+    if (pages > 1) {
+      alertTimer = setInterval(() => {
+        list.classList.add('fade');
+        setTimeout(() => { page = (page + 1) % pages; show(); pg.textContent = `${page + 1}/${pages}`; list.classList.remove('fade'); }, 350);
+      }, PAGE_SEC * 1000);
+    }
+    return el('section', { class: 'panel', id: 'alerts' }, [
+      el('div', { class: 'ph' }, [el('h2', { text: 'Perlu perhatian' }), pg]),
+      el('div', { class: 'sub' }, [el('span', { class: 'pill' }, [statusIcon('critical'), el('b', { text: `${nCrit} kritis` })]), '   ', el('span', { class: 'pill' }, [statusIcon('warning'), el('b', { text: `${nWarn} waspada` })])]),
+      el('div', { class: 'body' }, list),
+    ]);
+  }
+
+  /* ---------- panel bawah ---------- */
+  function pMobile(sev) {
+    const m = D.mobile, aktif = periodOf(m.penggunaAktifHarian, DAYS, 'avg'), aju = periodOf(m.pengajuanHarian, DAYS), sel = periodOf(m.selesaiHarian, DAYS);
+    return panel('mobile', '1', 'Aplikasi Warga', sev, [
+      areaChart(slice(D.tanggal, DAYS), aktif.cur.map((v) => Math.round(v)), 'Pengguna aktif per hari'),
+      el('div', { class: 'sub' }, ['Aktif/hari ', el('b', { text: fmt(aktif.c) }), ' ', delta(aktif.chg)]),
+      el('div', { class: 'sub' }, ['Pengajuan ', el('b', { text: fmt(aju.c) }), ' · selesai ', el('b', { text: pct((sel.c / (aju.c || 1)) * 100, 0) })]),
+    ]);
+  }
+  function pKiosk(sev) {
+    const k = D.kiosk;
+    const rows = k.perangkat.map((p) => {
+      const off = p.status !== 'online', low = !off && p.kertasPersen < 20;
+      return el('div', { class: 'rowline', style: 'grid-template-columns: 22px 1fr auto' }, [
+        statusIcon(off ? 'critical' : low ? 'warning' : 'ok'),
+        el('span', { class: 'n', text: p.nama.replace('Kiosk ', '') }),
+        el('span', { class: 'v', text: off ? 'Offline' : low ? `Kertas ${p.kertasPersen}%` : `${fmt(p.transaksiHariIni)} trx` }),
+      ]);
+    });
+    return panel('kiosk', '2', 'Kiosk', sev, [...rows, el('div', { class: 'sub', text: 'Angka = transaksi hari ini' })]);
+  }
+  function pAset(sev) {
+    const cats = D.aset.kategori, t = (key) => sum(cats.map((c) => c[key]));
+    const parts = [{ name: 'Baik', v: t('baik'), color: 'var(--good)' }, { name: 'Perbaikan', v: t('perbaikan'), color: 'var(--warn)' }, { name: 'Rusak', v: t('rusak'), color: 'var(--crit)' }];
+    const butuh = (c) => c.perbaikan + c.rusak;
+    const top = [...cats].sort((a, b) => butuh(b) / (b.baik + butuh(b)) - butuh(a) / (a.baik + butuh(a))).slice(0, 3);
+    return panel('aset', '3', 'Aset Desa', sev, [
+      el('div', { class: 'bar', style: 'height:20px' }, parts.map((p) => el('div', { class: 'seg', style: `flex:${p.v} 1 0;background:${p.color}` }))),
+      legend(parts.map((p) => ({ name: `${p.name} ${fmt(p.v)}`, color: p.color }))),
+      el('div', { class: 'sub', text: 'Paling banyak perlu tindakan' }),
+      ...top.map((c) => el('div', { class: 'rowline', style: 'grid-template-columns: 130px 1fr 50px' }, [
+        el('span', { class: 'n', text: c.nama }),
+        el('div', { class: 'bar' }, [[c.baik, 'var(--good)'], [c.perbaikan, 'var(--warn)'], [c.rusak, 'var(--crit)']].map(([v, col]) => (v ? el('div', { class: 'seg', style: `flex:${v} 1 0;background:${col}` }) : null))),
+        el('span', { class: 'v', text: `${butuh(c)}/${c.baik + butuh(c)}` }),
+      ])),
+    ]);
+  }
+  function pServer(sev) {
+    const s = D.server;
+    return panel('server', '5', 'Server', sev, [
+      ...s.perangkat.map((n) => {
+        const sv = n.disk >= 90 ? 'critical' : n.disk >= 75 ? 'warning' : 'ok';
+        const fillc = sv === 'critical' ? 'var(--crit)' : sv === 'warning' ? 'var(--warn)' : 'var(--s1)';
+        return el('div', { class: 'rowline', style: 'grid-template-columns: 112px 1fr 84px' }, [
+          el('span', { class: 'n', text: n.nama }),
+          el('div', { class: 'meter', style: '--fillc:' + fillc }, el('i', { style: `width:${n.disk}%` })),
+          el('span', { class: 'v' }, [sv !== 'ok' ? statusIcon(sv) : null, `Disk ${n.disk}%`]),
+        ]);
+      }),
+      el('div', { class: 'sub' }, ['Backup ', el('b', { text: s.backupTerakhir.status === 'berhasil' ? 'berhasil' : 'GAGAL' }), ' · SSL ', el('b', { text: `${s.sslSisaHari} hr` })]),
+    ]);
+  }
+  function pBlangko(sev) {
+    const { B, rows } = blangkoStats();
+    const parts = [{ key: 'terpakai', color: 'var(--s1)' }, { key: 'rusak', color: 'var(--crit)' }, { key: 'sisa', color: 'var(--neutral-seg)' }];
+    return panel('blangko', '6', 'Blangko', sev, [
+      legend([{ name: 'Terpakai', color: 'var(--s1)' }, { name: 'Rusak', color: 'var(--crit)' }, { name: 'Sisa', color: 'var(--neutral-seg)' }]),
+      ...rows.map((r) => el('div', { class: 'rowline', style: 'grid-template-columns: 128px 1fr 64px; font-size:16px' }, [
+        el('span', { class: 'n', text: r.nama.replace('Kartu Identitas Anak (KIA)', 'KIA') }),
+        el('div', { class: 'bar' }, parts.map((p) => (r[p.key] ? el('div', { class: 'seg', style: `flex:${r[p.key]} 1 0;background:${p.color}` }) : null))),
+        r.rusakCetak > B.ambangRusakPersen ? el('span', { class: 'v' }, [statusIcon('warning'), pct(r.rusakCetak, 1)]) : el('span', { class: 'v', text: pct(r.rusakCetak, 1) }),
+      ])),
+    ]);
+  }
+
+  /* ---------- render ---------- */
+  function render() {
+    const alerts = buildAlerts();
+    const K = kpis(DAYS, alerts);
+    const rows = W.applyFilter(wargaAll(), filter), a = W.aggregate(rows);
+    renderRail(K);
+    renderHead(K);
+    document.getElementById('kpis').replaceChildren(...K.cards.map((c) => UI.kpiCard(c, { ringSize: 68 })));
     mounts.length = 0;
-    document.getElementById('grid').replaceChildren(
-      pMobile(sevOf('mobile')), pKiosk(sevOf('kiosk')), pAset(sevOf('aset')),
-      pWarga(sevOf('warga')), pServer(sevOf('server')), pBlangko(sevOf('blangko'))
-    );
+    document.getElementById('main').replaceChildren(pWarga(K.sevOf('warga'), a), renderMap(rows), pAlerts(alerts));
+    document.getElementById('bottom').replaceChildren(pMobile(K.sevOf('mobile')), pKiosk(K.sevOf('kiosk')), pAset(K.sevOf('aset')), pServer(K.sevOf('server')), pBlangko(K.sevOf('blangko')));
     mounts.forEach((f) => f());
-    renderTicker(alerts);
   }
 
   function tick() {
@@ -325,7 +295,7 @@
     render();
     tick();
     setInterval(tick, 10000);
-    // Titik sambung data nyata: ambil ulang data (mis. fetch ke API) sebelum render().
+    // ambil ulang data (bila memakai API) lalu gambar ulang
     setInterval(async () => { await reload(); render(); }, REFRESH_MIN * 60 * 1000);
   });
 

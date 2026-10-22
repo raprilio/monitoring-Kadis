@@ -92,7 +92,7 @@
       const pernah = statusKawin !== 'BELUM KAWIN';
       const ktpWajib = usia >= 17 || pernah, kiaWajib = usia < 17 && !pernah;
       const r = {
-        nik, noKK: kk.noKK, nama: pick(jk === 'L' ? NAMA_L : NAMA_P) + (rnd() < 0.35 ? ' ' + pick(jk === 'L' ? NAMA_L : NAMA_P) : '') + ' ' + kk.marga,
+        nik, noKK: kk.noKK, nama: (() => { const dep = pick(jk === 'L' ? NAMA_L : NAMA_P); const tgh = rnd() < 0.35 ? pick(jk === 'L' ? NAMA_L : NAMA_P) : ''; return dep + (tgh && tgh !== dep ? ' ' + tgh : '') + ' ' + kk.marga; })(),
         jk, tglLahir: tgl, tempatLahir: pick(['Kabupaten Contoh', 'Kota Contoh', 'Kabupaten Sebelah']),
         statusKawin, pend, pekerjaan: pekerjaanOf(usia, jk, pend),
         agama: wpick(['Islam', 'Kristen', 'Katolik', 'Hindu'], [0.95, 0.03, 0.01, 0.01]),
@@ -171,6 +171,35 @@
       dataContoh: true,
     },
     tanggal,
+
+    // Peta desa SKEMATIK (bukan peta sungguhan): koordinat 0–160 (x) × 0–105 (y) hanya untuk gambar.
+    // Pada penerapan nyata, ganti dengan koordinat lintang/bujur dan peta dasar asli (mis. Leaflet + OpenStreetMap).
+    // `ref` menghubungkan titik ke data: nama kiosk, nama aset (aset.perluPerhatian), atau 'server' untuk Balai Desa.
+    peta: {
+      dusun: [
+        { nama: 'Dusun Krajan', poligon: [[8, 22], [62, 13], [74, 42], [66, 74], [20, 78], [6, 50]], label: [36, 47] },
+        { nama: 'Dusun Sumber', poligon: [[62, 13], [112, 8], [120, 38], [100, 55], [74, 42]], label: [94, 30] },
+        { nama: 'Dusun Karanganyar', poligon: [[112, 8], [154, 17], [152, 58], [124, 63], [120, 38]], label: [136, 38] },
+        { nama: 'Dusun Tegalan', poligon: [[66, 74], [74, 42], [100, 55], [124, 63], [118, 94], [72, 97]], label: [90, 74] },
+      ],
+      jalan: [
+        'M0 58 C30 54 60 61 90 49 S140 43 160 47',
+        'M70 4 C73 32 68 62 75 101',
+        'M100 55 C108 70 112 80 118 100',
+      ],
+      sungai: 'M0 92 C30 84 50 100 80 88 S130 100 160 84',
+      titik: [
+        { id: 'balai', jenis: 'balai', nama: 'Balai Desa', ref: 'server', x: 72, y: 50 },
+        { id: 'k1', jenis: 'kiosk', nama: 'Kiosk Balai Desa', ref: 'Kiosk Balai Desa', x: 62, y: 56 },
+        { id: 'k2', jenis: 'kiosk', nama: 'Kiosk Kantor Dusun 1', ref: 'Kiosk Kantor Dusun 1', x: 32, y: 40 },
+        { id: 'k3', jenis: 'kiosk', nama: 'Kiosk Kantor Dusun 2', ref: 'Kiosk Kantor Dusun 2', x: 96, y: 24 },
+        { id: 'k4', jenis: 'kiosk', nama: 'Kiosk Pasar Desa', ref: 'Kiosk Pasar Desa', x: 108, y: 70 },
+        { id: 'k5', jenis: 'kiosk', nama: 'Kiosk Pustu', ref: 'Kiosk Pustu', x: 134, y: 28 },
+        { id: 'a1', jenis: 'aset', nama: 'Atap Balai Dusun 2', ref: 'Atap Balai Dusun 2', x: 84, y: 18 },
+        { id: 'a2', jenis: 'aset', nama: 'Pos ronda RW 03', ref: 'Pos ronda RW 03', x: 22, y: 62 },
+        { id: 'a3', jenis: 'aset', nama: 'Mobil operasional desa', ref: 'Mobil operasional desa', x: 82, y: 56 },
+      ],
+    },
 
     // 1. Aplikasi Mobile Warga
     mobile: {

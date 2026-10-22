@@ -5,8 +5,9 @@
   const {
     nfd, fmt, fmt1, pct, compact, rupiah, sum, avg, clamp, slice, changePct, dShort, dLong,
     el, SEV_LABEL, statusIcon, pill, blangkoStats, buildAlerts,
-    W, wargaAll, ready,
+    W, wargaAll, ready, kpis, petaTitik, petaCounts,
   } = window.DashLib;
+  const UI = window.DashUI;
 
   /* ============================== tooltip ============================== */
   const tip = (() => {
@@ -128,7 +129,7 @@
           el('svg:text', { x: m.l - 8, y: y(t) + 4, 'text-anchor': 'end', class: 'tick', text: yFmt(t) })
         )
       );
-      const k = Math.min(5, n);
+      const k = Math.min(W < 420 ? 3 : 5, n);
       for (let j = 0; j < k; j++) {
         const i = Math.round((j * (n - 1)) / (k - 1 || 1));
         svg.append(el('svg:text', {
@@ -829,32 +830,38 @@
   }
 
   /* ============================== ringkasan & peringatan ============================== */
-  function overview() {
-    const sel = periodStats(D.mobile.selesaiHarian), kio = periodStats(D.kiosk.transaksiHarian);
-    const total = sel.c + kio.c, prev = sel.p + kio.p;
-    const chg = changePct(total, prev);
-    const alerts = buildAlerts();
-    const nCrit = alerts.filter((a) => a.sev === 'critical').length;
+  function overview(alerts, K) {
+    const h = K.hero, chg = h.chg;
+    const dailySel = periodStats(D.mobile.selesaiHarian).cur, dailyKio = periodStats(D.kiosk.transaksiHarian).cur;
+    const trend = el('div', { class: 'hero-trend' });
+    lineChart(trend, { dates: dates(), series: [{ name: 'Layanan selesai per hari', color: 'var(--s1)', values: dailySel.map((v, i) => v + dailyKio[i]) }], height: 140, label: 'Grafik layanan digital terselesaikan per hari' });
+    const hero = el('article', { class: 'card hero', id: 'ringkasan' }, [
+      el('div', { class: 'hero-main' }, [
+        el('div', { class: 'hero-label', text: `Layanan digital terselesaikan · ${state.days} hari terakhir` }),
+        el('div', { class: 'hero-val', text: fmt(h.value) }),
+        el('div', { class: 'hero-sub' }, [
+          el('span', { style: 'font-weight:600;color:var(--' + (chg >= 0 ? 'good-text' : 'crit-text') + ')', text: (chg >= 0 ? '▲ +' : '▼ −') + fmt1(Math.abs(chg)) + '%' }),
+          ' ' + vsText(),
+        ]),
+        el('div', { class: 'hero-sub' }, ['Aplikasi warga ', el('b', { text: fmt(h.viaApp) }), ' · kiosk ', el('b', { text: fmt(h.viaKiosk) })]),
+        el('div', { class: 'hero-sub' }, ['Pengajuan selesai ', el('b', { text: pct(h.rate, 0) })]),
+      ]),
+      trend,
+    ]);
+    const kpiGrid = el('div', { class: 'kpi-grid' }, [hero, ...K.cards.map((c) => UI.kpiCard(c, { href: '#' + c.id, ringSize: 72 }))]);
 
-    const hero = el('article', { class: 'card hero' }, [
-      el('div', { class: 'hero-label', text: `Layanan digital terselesaikan · ${state.days} hari terakhir` }),
-      el('div', { class: 'hero-val', text: fmt(total) }),
-      el('div', { class: 'hero-sub' }, [
-        el('span', { style: 'font-weight:600;color:var(--' + (chg >= 0 ? 'good-text' : 'crit-text') + ')', text: (chg >= 0 ? '▲ +' : '▼ −') + fmt1(Math.abs(chg)) + '%' }),
-        ' ' + vsText(),
-      ]),
-      el('div', { class: 'hero-split' }, [
-        el('span', {}, ['Via aplikasi warga ', el('b', { text: fmt(sel.c) })]),
-        el('span', {}, ['Via kiosk ', el('b', { text: fmt(kio.c) })]),
-      ]),
-      el('h2', { class: 'status-h', text: 'Status tiap bagian' }),
-      el('ul', { class: 'status-grid' }, SECTIONS.map(([id, name]) => {
-        const worst = alerts.find((a) => a.sec === id); // daftar sudah urut dari yang paling parah
-        const sev = worst ? worst.sev : 'ok';
-        return el('li', {}, el('a', { href: '#' + id }, [el('span', { text: name }), pill(sev)]));
-      })),
+    // peta desa skematik: lokasi kiosk, aset bermasalah, balai desa; angka = warga per dusun
+    const points = petaTitik(), counts = petaCounts(wargaAll());
+    const mapHost = el('div', { class: 'mapframe' });
+    mapHost.append(UI.villageMap({ peta: D.peta, counts, points, onHover: (p, e) => tip.show(e.clientX, e.clientY, p.nama, [{ value: SEV_LABEL[p.sev], name: `${p.tipe} · ${p.detail}` }]), onLeave: tip.hide }));
+    const nWatch = points.filter((p) => p.sev !== 'ok').length;
+    const mapCard = el('article', { class: 'card mapcard' }, [
+      el('div', { class: 'card-head', style: 'margin-bottom:0' }, [el('div', {}, [el('h3', { text: 'Peta desa (skematik)' }), el('p', { text: `${nWatch} dari ${points.length} titik perlu perhatian · angka = jumlah warga per dusun` })])]),
+      mapHost, UI.mapLegend(),
+      el('p', { class: 'note', text: 'Gambar skematik, bukan peta sungguhan. Arahkan kursor ke titik untuk detail.' }),
     ]);
 
+    const nCrit = alerts.filter((a) => a.sev === 'critical').length;
     const list = alerts.length
       ? el('ul', { class: 'alert-list' }, alerts.map((a) =>
           el('li', {}, el('a', { href: '#' + a.sec }, [
@@ -867,24 +874,43 @@
           ]))
         ))
       : el('div', { class: 'all-good' }, [statusIcon('ok'), 'Tidak ada hal yang perlu perhatian saat ini.']);
-
     const al = el('article', { class: 'card alerts' }, [
       el('h2', { text: 'Perlu perhatian' }),
       el('p', { class: 'alerts-sub', text: alerts.length ? `${alerts.length} hal · ${nCrit} kritis, ${alerts.length - nCrit} waspada. Ketuk untuk menuju bagian terkait.` : 'Semua laporan dalam batas normal.' }),
       list,
     ]);
-    return el('div', { class: 'overview' }, [hero, al]);
+    return el('div', {}, [kpiGrid, el('div', { class: 'overview2' }, [mapCard, al])]);
   }
 
   /* ============================== render ============================== */
   const app = document.getElementById('app');
   const SECTIONS = [
-    ['mobile', '1. Aplikasi warga'], ['kiosk', '2. Kiosk'], ['aset', '3. Aset'],
-    ['warga', '4. Data warga'], ['server', '5. Server'], ['blangko', '6. Blangko'],
+    ['mobile', 'Aplikasi Warga', 'phone'], ['kiosk', 'Kiosk', 'kiosk'], ['aset', 'Aset Desa', 'box'],
+    ['warga', 'Kependudukan', 'users'], ['server', 'Server', 'server'], ['blangko', 'Blangko', 'doc'],
   ];
+  let spy = null;
+  function renderNav(K) {
+    const nav = document.getElementById('nav');
+    nav.replaceChildren(
+      el('a', { href: '#ringkasan', 'data-s': 'ringkasan' }, [UI.icon('home'), 'Ringkasan']),
+      ...SECTIONS.map(([id, name, ic]) => el('a', { href: '#' + id, 'data-s': id }, [UI.icon(ic), `${SECTIONS.findIndex((s) => s[0] === id) + 1}. ${name}`, el('span', { class: 'st', title: SEV_LABEL[K.sevOf(id)] }, statusIcon(K.sevOf(id)))]))
+    );
+    // sorot bagian yang sedang dilihat
+    const mark = (id) => nav.querySelectorAll('a').forEach((a) => a.setAttribute('aria-current', String(a.dataset.s === id)));
+    mark('ringkasan');
+    if (spy) spy.disconnect();
+    if ('IntersectionObserver' in window) {
+      spy = new IntersectionObserver((entries) => entries.forEach((en) => { if (en.isIntersecting) mark(en.target.id); }), { rootMargin: '-30% 0px -60% 0px' });
+      ['ringkasan', ...SECTIONS.map((s) => s[0])].forEach((id) => { const n = document.getElementById(id); if (n) spy.observe(n); });
+    }
+  }
   function render() {
     tip.hide();
-    app.replaceChildren(overview(), secMobile(), secKiosk(), secAset(), secWarga(), secServer(), secBlangko());
+    const alerts = buildAlerts(), K = kpis(state.days, alerts);
+    app.replaceChildren(overview(alerts, K), secMobile(), secKiosk(), secAset(), secWarga(), secServer(), secBlangko());
+    renderNav(K);
+    const sp = D.meta.sumberPenduduk;
+    document.getElementById('side-src').textContent = `Data warga: ${sp.jenis === 'api' ? 'API' : sp.jenis === 'csv' ? 'impor CSV' : 'data contoh'}${D.meta.dataContoh ? ' · bagian lain: data contoh' : ''}`;
   }
 
   function setup() {
@@ -900,8 +926,10 @@
       ? 'Angka pada halaman ini adalah data contoh. Hubungkan data.js ke aplikasi sebenarnya (dan data warga ke SIAK) untuk menampilkan data desa.'
       : '';
 
-    const jump = document.getElementById('jump');
-    SECTIONS.forEach(([id, name]) => jump.append(el('a', { href: '#' + id, text: name })));
+    document.getElementById('side-logo').classList.add('logo');
+    document.getElementById('side-logo').append(UI.icon('shield', 24));
+    document.getElementById('side-desa').textContent = D.meta.desa;
+    document.getElementById('side-tv').append(UI.icon('tv', 20), el('span', { text: 'Tampilan TV' }));
 
     const per = document.getElementById('periode');
     const check = () => el('svg:svg', { class: 'chk', viewBox: '0 0 16 16', 'aria-hidden': 'true' }, el('svg:path', { d: 'M3 8.5l3.2 3.2L13 4.8', fill: 'none', stroke: 'currentColor', 'stroke-width': 2.2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
