@@ -1,15 +1,21 @@
 /*
  * Tampilan TV: satu halaman, tanpa scroll, tanpa interaksi.
- * Parameter URL (opsional): ?days=7|30|90  ?theme=light|dark  ?refresh=<menit>  ?page=<detik pergantian peringatan>
+ * Parameter URL (opsional): ?days=7|30|90  ?status=semua|menikah|lajang|cerai  ?theme=light|dark  ?refresh=<menit>  ?page=<detik pergantian peringatan>
+ * Ganti filter status: klik tombol "Status" di pojok kiri atas, atau tombol panah kiri/kanan pada keyboard/remote.
  */
 (() => {
   'use strict';
-  const { D, el, fmt, nfd, pct, sum, avg, slice, changePct, dShort, SEV_LABEL, statusIcon, pill, buildAlerts, blangkoStats } = window.DashLib;
+  const {
+    D, el, fmt, nfd, pct, sum, avg, slice, changePct, dShort, SEV_LABEL, statusIcon, pill, buildAlerts, blangkoStats,
+    STATUS, STATUS_COLOR, statusLabel, parseStatus, share, scaled, wargaView, pengaduanView,
+  } = window.DashLib;
 
   const q = new URLSearchParams(location.search);
   const DAYS = [7, 30, 90].includes(Number(q.get('days'))) ? Number(q.get('days')) : 30;
   const REFRESH_MIN = Number(q.get('refresh')) || 5;
   const PAGE_SEC = Number(q.get('page')) || 8;
+  let status = parseStatus(q.get('status'));
+  const NO_FILTER = new Set(['aset', 'server', 'blangko']); // tidak terkait status perkawinan
   if (['light', 'dark'].includes(q.get('theme'))) document.documentElement.dataset.theme = q.get('theme');
 
   /* ---------- skala panggung 1920x1080 ke ukuran layar ---------- */
@@ -24,7 +30,8 @@
   fit();
 
   /* ---------- util ---------- */
-  const ps = (arr, mode = 'sum') => {
+  const ps = (arr, mode = 'sum', kind = null) => {
+    if (kind) arr = scaled(arr, kind, status);
     const cur = slice(arr, DAYS), prev = slice(arr, DAYS, DAYS), f = mode === 'sum' ? sum : avg;
     return { cur, prev, c: f(cur), p: f(prev), chg: changePct(f(cur), f(prev)) };
   };
@@ -44,7 +51,7 @@
   const mounts = [];
   function panel(id, num, title, sev, kpis, viz) {
     return el('section', { class: 'panel', id }, [
-      el('header', {}, [el('span', { class: 'num', text: num }), el('h2', { text: title }), pill(sev)]),
+      el('header', {}, [el('span', { class: 'num', text: num }), el('h2', { text: title }), NO_FILTER.has(id) && status !== 'semua' ? el('span', { class: 'nf', text: 'di luar filter' }) : null, pill(sev)]),
       el('div', { class: 'kpis' }, kpis),
       el('div', { class: 'viz' }, viz),
     ]);
@@ -86,24 +93,25 @@
   /* ---------- panel per laporan ---------- */
   function pMobile(sev) {
     const m = D.mobile;
-    const aktif = ps(m.penggunaAktifHarian, 'avg'), aju = ps(m.pengajuanHarian), sel = ps(m.selesaiHarian);
+    const aktif = ps(m.penggunaAktifHarian, 'avg', 'penggunaAktif'), aju = ps(m.pengajuanHarian, 'sum', 'pengajuan'), sel = ps(m.selesaiHarian, 'sum', 'pengajuan');
+    const pg = pengaduanView(status);
     const rate = (sel.c / (aju.c || 1)) * 100, ratePrev = (sel.p / (aju.p || 1)) * 100;
     return panel('mobile', '1', 'Aplikasi Warga', sev, [
       kpi({ label: 'Pengguna harian', value: fmt(aktif.c), dl: delta(aktif.chg) }),
       kpi({ label: 'Pengajuan selesai', value: fmt(rate), unit: '%', dl: delta(rate - ratePrev, { unit: ' poin' }) }),
-      kpi({ label: 'Pengaduan terbuka', value: fmt(m.pengaduanTerbuka), sub: m.pengaduanLebih7Hari ? `${m.pengaduanLebih7Hari} lewat 7 hari` : 'semua < 7 hari' }),
+      kpi({ label: 'Pengaduan terbuka', value: fmt(pg.terbuka), sub: pg.lebih7Hari ? `${pg.lebih7Hari} lewat 7 hari` : 'semua < 7 hari' }),
     ], [areaChart(slice(D.tanggal, DAYS), aktif.cur, 'Pengguna aktif per hari')]);
   }
 
   function pKiosk(sev) {
-    const k = D.kiosk, tr = ps(k.transaksiHarian);
+    const k = D.kiosk, tr = ps(k.transaksiHarian, 'sum', 'transaksiKiosk');
     const online = k.perangkat.filter((p) => p.status === 'online').length;
     const rows = k.perangkat.map((p) => {
       const on = p.status === 'online';
       return el('div', { class: 'rowline', style: 'grid-template-columns: 26px 1fr auto auto' }, [
         statusIcon(on ? 'ok' : 'critical'),
         el('span', { class: 'n', text: p.nama.replace('Kiosk ', '') }),
-        el('span', { class: 'v', text: on ? `${fmt(p.transaksiHariIni)} transaksi` : 'Offline' }),
+        el('span', { class: 'v', text: on ? `${fmt(p.transaksiHariIni * share('transaksiKiosk', status))} transaksi` : 'Offline' }),
         p.kertasPersen < 20 ? pill('warning', `Kertas ${p.kertasPersen}%`) : el('span', { class: 'n', text: `Kertas ${p.kertasPersen}%` }),
       ]);
     });
@@ -143,8 +151,9 @@
   }
 
   function pWarga(sev) {
-    const w = D.warga, mx = Math.max(...w.perDusun.map((d) => d.value));
+    const w = wargaView(status), mx = Math.max(...w.perDusun.map((d) => d.value), 1);
     const lengkap = avg(w.kelengkapan.map((k) => k.value));
+    const on = (k) => status === 'semua' || status === k;
     const rows = w.perDusun.map((d) =>
       el('div', { class: 'rowline', style: 'grid-template-columns: 190px 1fr 80px' }, [
         el('span', { class: 'n', text: d.label }),
@@ -152,11 +161,15 @@
         el('span', { class: 'v', text: fmt(d.value) }),
       ])
     );
+    const comp = el('div', { class: 'bar', style: 'height:22px;margin-top:4px' },
+      w.komposisi.map((c) => el('div', { class: 'seg', style: `flex:${c.value} 1 0;background:${STATUS_COLOR[c.key]};opacity:${on(c.key) ? 1 : 0.3}` })));
+    const compLegend = el('div', { class: 'legend' }, w.komposisi.map((c) =>
+      el('span', { style: `opacity:${on(c.key) ? 1 : 0.5}` }, [el('i', { style: 'background:' + STATUS_COLOR[c.key] }), `${c.label} ${fmt(c.value)}`])));
     return panel('warga', '4', 'Data Digital Warga', sev, [
-      kpi({ label: 'Penduduk', value: fmt(w.penduduk) }),
+      kpi({ label: status === 'semua' ? 'Penduduk' : `Penduduk ${statusLabel(status).toLowerCase()}`, value: fmt(w.penduduk) }),
       kpi({ label: 'Kepala keluarga', value: fmt(w.kepalaKeluarga) }),
       kpi({ label: 'Data lengkap', value: fmt(lengkap), unit: '%', sub: `terendah ${fmt(Math.min(...w.kelengkapan.map((k) => k.value)))}%` }),
-    ], [el('div', { class: 'k-sub', text: 'Penduduk per dusun' }), ...rows]);
+    ], [comp, compLegend, ...rows]);
   }
 
   function pServer(sev) {
@@ -254,13 +267,13 @@
 
   /* ---------- render ---------- */
   function render() {
-    const alerts = buildAlerts();
+    const alerts = buildAlerts(status);
     const sevOf = (id) => (alerts.find((a) => a.sec === id) || { sev: 'ok' }).sev; // urut: paling parah di depan
 
-    const sel = ps(D.mobile.selesaiHarian), kio = ps(D.kiosk.transaksiHarian);
+    const sel = ps(D.mobile.selesaiHarian, 'sum', 'pengajuan'), kio = ps(D.kiosk.transaksiHarian, 'sum', 'transaksiKiosk');
     const chg = changePct(sel.c + kio.c, sel.p + kio.p);
     document.getElementById('hero').replaceChildren(
-      el('div', { class: 'h-label', text: `Layanan digital terselesaikan · ${DAYS} hari terakhir` }),
+      el('div', { class: 'h-label', text: `Layanan digital terselesaikan · ${DAYS} hari${status === 'semua' ? '' : ' · warga ' + statusLabel(status).toLowerCase()}` }),
       el('div', { class: 'h-row' }, [
         el('span', { class: 'h-val', text: fmt(sel.c + kio.c) }),
         el('span', { class: 'h-delta ' + (chg >= 0 ? 'good' : 'bad'), text: (chg >= 0 ? '▲ +' : '▼ −') + nfd(1).format(Math.abs(chg)) + '%' }),
@@ -268,6 +281,9 @@
     );
     document.getElementById('desa').textContent = `${D.meta.desa} · ${D.meta.kecamatan} · ${D.meta.kabupaten}`;
     document.getElementById('demo').hidden = !D.meta.dataContoh;
+    const flt = document.getElementById('flt');
+    flt.textContent = 'Status: ' + statusLabel(status);
+    flt.style.setProperty('--fc', status === 'semua' ? 'var(--muted)' : STATUS_COLOR[status]);
 
     mounts.length = 0;
     document.getElementById('grid').replaceChildren(
@@ -283,6 +299,26 @@
     document.getElementById('time').textContent = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
     document.getElementById('date').textContent = now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   }
+
+  // filter status: klik tombol atau panah kiri/kanan
+  function setStatus(next) {
+    status = next;
+    try {
+      const u = new URL(location.href);
+      if (status === 'semua') u.searchParams.delete('status'); else u.searchParams.set('status', status);
+      history.replaceState(null, '', u);
+    } catch (e) { /* abaikan */ }
+    render();
+  }
+  const cycle = (dir) => {
+    const i = STATUS.findIndex((x) => x.key === status);
+    setStatus(STATUS[(i + dir + STATUS.length) % STATUS.length].key);
+  };
+  document.getElementById('flt').addEventListener('click', () => cycle(1));
+  addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight') cycle(1);
+    else if (e.key === 'ArrowLeft') cycle(-1);
+  });
 
   render();
   tick();

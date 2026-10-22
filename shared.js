@@ -57,6 +57,49 @@ window.DashLib = (() => {
   }
   const pill = (sev, text) => el('span', { class: 'pill' }, [statusIcon(sev), el('b', { text: text || SEV_LABEL[sev] })]);
 
+  /* ---------- filter status perkawinan ---------- */
+  const STATUS = [
+    { key: 'semua', label: 'Semua' },
+    { key: 'menikah', label: 'Menikah' },
+    { key: 'lajang', label: 'Lajang' },
+    { key: 'cerai', label: 'Cerai' },
+  ];
+  const STATUS_KEYS = ['menikah', 'lajang', 'cerai'];
+  const STATUS_COLOR = { menikah: 'var(--st1)', lajang: 'var(--st2)', cerai: 'var(--st3)' };
+  const statusLabel = (k) => (STATUS.find((s) => s.key === k) || STATUS[0]).label;
+  const pickStatus = (st) => (st === 'semua' ? STATUS_KEYS : [st]);
+  const parseStatus = (v) => (STATUS.some((s) => s.key === v) ? v : 'semua');
+
+  /** Porsi aktivitas (0..1) untuk status terpilih; 1 bila "semua". */
+  const share = (kind, st) => sum(pickStatus(st).map((k) => D.porsiStatus[kind][k]));
+  /** Skalakan deret harian menurut porsi status. */
+  const scaled = (arr, kind, st) => (st === 'semua' ? arr : arr.map((v) => v * share(kind, st)));
+
+  /** Data warga untuk status terpilih (jumlah ketiga status dijumlahkan bila "semua"). */
+  function wargaView(st) {
+    const W = D.warga, S = (k) => W.perStatus[k], ks = pickStatus(st);
+    const tot = (f) => sum(ks.map((k) => f(S(k))));
+    const penduduk = tot((x) => x.penduduk);
+    return {
+      penduduk,
+      kepalaKeluarga: tot((x) => x.kepalaKeluarga),
+      lakiLaki: tot((x) => x.lakiLaki),
+      perempuan: tot((x) => x.perempuan),
+      terdaftarApp: tot((x) => x.terdaftarApp),
+      perDusun: W.dusun.map((label, i) => ({ label, value: tot((x) => x.perDusun[i]) })),
+      perUsia: W.kelompokUsia.map((label, i) => ({ label, value: tot((x) => x.perUsia[i]) })),
+      kelengkapan: W.indikator.map((label, i) => ({ label, value: tot((x) => x.kelengkapan[i] * x.penduduk) / (penduduk || 1) })),
+      mutasi: ['lahir', 'meninggal', 'datang', 'pindah'].reduce((o, m) => ({ ...o, [m]: tot((x) => x.mutasi30Hari[m]) }), {}),
+      // komposisi selalu menampilkan ketiga status (untuk perbandingan), apa pun filternya
+      komposisi: STATUS_KEYS.map((k) => ({ key: k, label: statusLabel(k), value: S(k).penduduk })),
+      anakLajang: S('lajang').perUsia[0] + S('lajang').perUsia[1],
+    };
+  }
+  const pengaduanView = (st) => {
+    const P = D.mobile.pengaduanPerStatus, ks = pickStatus(st);
+    return { terbuka: sum(ks.map((k) => P[k].terbuka)), lebih7Hari: sum(ks.map((k) => P[k].lebih7Hari)) };
+  };
+
   /* ---------- blangko ---------- */
   function blangkoStats() {
     const B = D.blangko;
@@ -74,7 +117,7 @@ window.DashLib = (() => {
   }
 
   /* ---------- peringatan otomatis ("perlu perhatian") ---------- */
-  function buildAlerts() {
+  function buildAlerts(st = 'semua') {
     const A = [];
     const add = (sev, title, detail, sec, secName) => A.push({ sev, title, detail, sec, secName });
     D.kiosk.perangkat.forEach((k) => {
@@ -94,8 +137,9 @@ window.DashLib = (() => {
     });
     const rusakAset = sum(D.aset.kategori.map((c) => c.rusak));
     if (rusakAset) add('warning', `${fmt(rusakAset)} unit aset rusak`, 'Menunggu keputusan perbaikan atau penghapusan', 'aset', 'Aset');
-    if (D.mobile.pengaduanLebih7Hari) add('warning', `${D.mobile.pengaduanLebih7Hari} pengaduan warga belum ditangani > 7 hari`, `${D.mobile.pengaduanTerbuka} pengaduan masih terbuka`, 'mobile', 'Aplikasi warga');
-    D.warga.kelengkapan.filter((k) => k.value < 75).forEach((k) => add('critical', `Data warga: ${k.label} baru ${pct(k.value, 0)}`, 'Perlu percepatan pendataan', 'warga', 'Data warga'));
+    const pg = pengaduanView(st), tag = st === 'semua' ? '' : ` (${statusLabel(st).toLowerCase()})`;
+    if (pg.lebih7Hari) add('warning', `${pg.lebih7Hari} pengaduan warga${tag} belum ditangani > 7 hari`, `${pg.terbuka} pengaduan masih terbuka`, 'mobile', 'Aplikasi warga');
+    wargaView(st).kelengkapan.filter((k) => k.value < 75).forEach((k) => add('critical', `Data warga${tag}: ${k.label} baru ${pct(k.value, 0)}`, 'Perlu percepatan pendataan', 'warga', 'Data warga'));
     const order = { critical: 0, warning: 1 };
     return A.sort((a, b) => order[a.sev] - order[b.sev]);
   }
@@ -103,5 +147,6 @@ window.DashLib = (() => {
   return {
     D, nf, nfd, fmt, fmt1, pct, compact, rupiah, sum, avg, clamp, slice, changePct, dShort, dLong,
     el, SEV_LABEL, statusIcon, pill, blangkoStats, buildAlerts,
+    STATUS, STATUS_KEYS, STATUS_COLOR, statusLabel, parseStatus, share, scaled, wargaView, pengaduanView,
   };
 })();

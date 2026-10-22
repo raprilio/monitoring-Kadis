@@ -51,16 +51,27 @@
     },
     tanggal,
 
+    // Porsi aktivitas menurut status perkawinan (jumlah tiap baris = 1). Dipakai untuk memecah deret
+    // harian aplikasi warga dan kiosk saat filter status dipilih. Pada data nyata, catat status warga
+    // (dari NIK) di setiap pengguna/transaksi lalu hitung porsi ini dari sana.
+    porsiStatus: {
+      penggunaAktif: { menikah: 0.58, lajang: 0.3, cerai: 0.12 },
+      pengajuan: { menikah: 0.62, lajang: 0.3, cerai: 0.08 },
+      transaksiKiosk: { menikah: 0.55, lajang: 0.37, cerai: 0.08 },
+    },
+
     // 1. Aplikasi Mobile Warga
     mobile: {
       penggunaAktifHarian: seri((i) => Math.round((700 + i * 1.8) * (hariKerja[i] === 1 ? 1 : 0.82) * (1 + noise(0.04)))),
       pengajuanHarian: pengajuan,
       selesaiHarian: selesai,
-      wargaTerdaftar: 3920,
       rating: 4.6,
       jumlahUlasan: 318,
-      pengaduanTerbuka: 12,
-      pengaduanLebih7Hari: 3,
+      pengaduanPerStatus: {
+        menikah: { terbuka: 7, lebih7Hari: 2 },
+        lajang: { terbuka: 4, lebih7Hari: 1 },
+        cerai: { terbuka: 1, lebih7Hari: 0 },
+      },
       // bobot relatif; jumlah per periode = bobot × total pengajuan periode
       pengajuanPerJenis: [
         { label: 'Surat keterangan domisili', bobot: 0.27 },
@@ -113,32 +124,41 @@
     },
 
     // 4. Data Digital Warga
+    // Dipecah menurut status perkawinan (kunci: menikah, lajang, cerai). Jumlah "semua" dihitung
+    // dashboard dengan menjumlahkan ketiganya, jadi tidak perlu diisi terpisah.
+    //  - lajang = belum kawin (termasuk anak-anak); cerai = cerai hidup + cerai mati (janda/duda).
+    //  - perDusun / perUsia / kelengkapan mengikuti urutan `dusun` / `kelompokUsia` / `indikator`.
+    //  - kelengkapan = % warga di status itu yang datanya sudah lengkap.
     warga: {
-      penduduk: 4286,
-      kepalaKeluarga: 1312,
-      lakiLaki: 2151,
-      perempuan: 2135,
-      perDusun: [
-        { label: 'Dusun Krajan', value: 1480 },
-        { label: 'Dusun Sumber', value: 1125 },
-        { label: 'Dusun Tegalan', value: 905 },
-        { label: 'Dusun Karanganyar', value: 776 },
+      dusun: ['Dusun Krajan', 'Dusun Sumber', 'Dusun Tegalan', 'Dusun Karanganyar'],
+      kelompokUsia: ['0–5 tahun', '6–17 tahun', '18–59 tahun', '60 tahun ke atas'],
+      indikator: [
+        'NIK terverifikasi',
+        'Kartu Keluarga terdigitalisasi',
+        'Dokumen pendukung ter-scan',
+        'Nomor HP tercatat',
+        'Terdaftar di aplikasi warga',
       ],
-      perUsia: [
-        { label: '0–5 tahun', value: 312 },
-        { label: '6–17 tahun', value: 861 },
-        { label: '18–59 tahun', value: 2504 },
-        { label: '60 tahun ke atas', value: 609 },
-      ],
-      // persen warga yang datanya sudah lengkap
-      kelengkapan: [
-        { label: 'NIK terverifikasi', value: 96.4 },
-        { label: 'Kartu Keluarga terdigitalisasi', value: 91.2 },
-        { label: 'Dokumen pendukung ter-scan', value: 84.7 },
-        { label: 'Nomor HP tercatat', value: 78.5 },
-        { label: 'Terdaftar di aplikasi warga', value: 62.0 },
-      ],
-      mutasi30Hari: { lahir: 7, meninggal: 3, datang: 11, pindah: 9 },
+      perStatus: {
+        menikah: {
+          penduduk: 2105, kepalaKeluarga: 1010, lakiLaki: 1050, perempuan: 1055,
+          perDusun: [724, 531, 440, 410], perUsia: [0, 0, 1590, 515],
+          kelengkapan: [98.5, 94.0, 88.0, 90.0, 80.0], terdaftarApp: 1684,
+          mutasi30Hari: { lahir: 0, meninggal: 1, datang: 5, pindah: 4 },
+        },
+        lajang: {
+          penduduk: 1998, kepalaKeluarga: 160, lakiLaki: 1060, perempuan: 938,
+          perDusun: [694, 549, 424, 331], perUsia: [312, 861, 800, 25],
+          kelengkapan: [93.5, 88.0, 80.0, 62.0, 42.0], terdaftarApp: 839,
+          mutasi30Hari: { lahir: 7, meninggal: 1, datang: 5, pindah: 4 },
+        },
+        cerai: {
+          penduduk: 183, kepalaKeluarga: 142, lakiLaki: 41, perempuan: 142,
+          perDusun: [62, 45, 41, 35], perUsia: [0, 0, 114, 69],
+          kelengkapan: [97.0, 90.0, 85.0, 85.0, 70.0], terdaftarApp: 128,
+          mutasi30Hari: { lahir: 0, meninggal: 1, datang: 1, pindah: 1 },
+        },
+      },
     },
 
     // 5. Monitoring Server

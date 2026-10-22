@@ -5,6 +5,7 @@
   const {
     nfd, fmt, fmt1, pct, compact, rupiah, sum, avg, clamp, slice, changePct, dShort, dLong,
     el, SEV_LABEL, statusIcon, pill, blangkoStats, buildAlerts,
+    STATUS, STATUS_COLOR, statusLabel, parseStatus, share, scaled, wargaView, pengaduanView,
   } = window.DashLib;
 
   /* ============================== tooltip ============================== */
@@ -212,7 +213,7 @@
   }
 
   /** Batang bertumpuk 100% per baris (komposisi), jeda 2px antar segmen. */
-  function stackChart(host, { parts, rows }) {
+  function stackChart(host, { parts, rows, active }) {
     host.replaceChildren(legendEl(parts.map((p) => ({ name: p.name, color: p.color }))));
     const list = el('div', { class: 'stack-rows' });
     rows.forEach((r) => {
@@ -221,7 +222,7 @@
       parts.forEach((p) => {
         const v = r.values[p.key] || 0;
         if (!v) return;
-        bar.append(el('div', { class: 'stack-seg', style: `flex:${v} 1 0;background:${p.color}` }));
+        bar.append(el('div', { class: 'stack-seg' + (active && !active.includes(p.key) ? ' dim' : ''), style: `flex:${v} 1 0;background:${p.color}` }));
       });
       const row = el('div', { class: 'stack-row', tabindex: 0, role: 'group', 'aria-label': r.label + ': ' + parts.map((p) => `${p.name} ${fmt(r.values[p.key] || 0)}`).join(', ') }, [
         el('div', { class: 'stack-top' }, [el('span', { class: 'l', text: r.label }), el('span', { class: 'r', text: r.right || '' })]),
@@ -297,9 +298,12 @@
   }
 
   /* ============================== kalkulasi ============================== */
-  const state = { days: 30 };
+  const state = { days: 30, status: parseStatus(new URLSearchParams(location.search).get('status')) };
   const vsText = () => `vs ${state.days} hari sebelumnya`;
-  function periodStats(arr, mode = 'sum') {
+  const NO_FILTER = new Set(['aset', 'server', 'blangko']); // data yang tidak terkait status perkawinan warga
+  /** `kind` = jenis porsi status (lihat porsiStatus di data.js); tanpa kind deret dipakai apa adanya. */
+  function periodStats(arr, mode = 'sum', kind = null) {
+    if (kind) arr = scaled(arr, kind, state.status);
     const cur = slice(arr, state.days), prev = slice(arr, state.days, state.days);
     const f = mode === 'sum' ? sum : avg;
     return { cur, prev, c: f(cur), p: f(prev), chg: changePct(f(cur), f(prev)) };
@@ -311,7 +315,10 @@
     return el('section', { class: 'sec', id, 'aria-labelledby': id + '-h' }, [
       el('div', { class: 'sec-head' }, [
         el('span', { class: 'sec-num', 'aria-hidden': 'true', text: num }),
-        el('div', {}, [el('h2', { id: id + '-h', text: title }), el('p', { class: 'insight', text: insight })]),
+        el('div', {}, [
+          el('h2', { id: id + '-h' }, [title, NO_FILTER.has(id) && state.status !== 'semua' ? el('span', { class: 'nofilter', text: 'Tidak terpengaruh filter status' }) : null]),
+          el('p', { class: 'insight', text: insight }),
+        ]),
       ]),
       ...children,
     ]);
@@ -321,11 +328,12 @@
 
   function secMobile() {
     const m = D.mobile;
-    const aktif = periodStats(m.penggunaAktifHarian, 'avg');
-    const aju = periodStats(m.pengajuanHarian);
-    const sel = periodStats(m.selesaiHarian);
+    const aktif = periodStats(m.penggunaAktifHarian, 'avg', 'penggunaAktif');
+    const aju = periodStats(m.pengajuanHarian, 'sum', 'pengajuan');
+    const sel = periodStats(m.selesaiHarian, 'sum', 'pengajuan');
     const rate = (sel.c / (aju.c || 1)) * 100, ratePrev = (sel.p / (aju.p || 1)) * 100;
-    const terdaftarPct = (m.wargaTerdaftar / D.warga.penduduk) * 100;
+    const wv = wargaView(state.status), pg = pengaduanView(state.status);
+    const terdaftarPct = (wv.terdaftarApp / wv.penduduk) * 100;
     const insight = `Rata-rata ${fmt(aktif.c)} pengguna aktif per hari (${aktif.chg >= 0 ? 'naik' : 'turun'} ${fmt1(Math.abs(aktif.chg))}% vs ${state.days} hari sebelumnya); ${fmt(aju.c)} pengajuan layanan masuk, ${pct(rate, 0)} sudah selesai.`;
 
     const jenis = m.pengajuanPerJenis.map((j) => ({ label: j.label, value: Math.round(j.bobot * aju.c) }));
@@ -334,8 +342,8 @@
         tile({ label: 'Pengguna aktif harian (rata-rata)', value: fmt(aktif.c), delta: { value: aktif.chg, vs: vsText() }, spark: bucket(aktif.cur, 12, 'avg') }),
         tile({ label: 'Pengajuan layanan', value: fmt(aju.c), delta: { value: aju.chg, vs: vsText() }, spark: bucket(aju.cur, 12, 'sum') }),
         tile({ label: 'Pengajuan selesai', value: pct(rate, 0), delta: { value: rate - ratePrev, unit: ' poin', vs: vsText() }, sub: `${fmt(sel.c)} dari ${fmt(aju.c)} pengajuan` }),
-        tile({ label: 'Warga terdaftar di aplikasi', value: fmt(m.wargaTerdaftar), sub: `${pct(terdaftarPct, 0)} dari ${fmt(D.warga.penduduk)} penduduk · rating ${nfd(1).format(m.rating)}/5 (${fmt(m.jumlahUlasan)} ulasan)` }),
-        tile({ label: 'Pengaduan warga terbuka', value: fmt(m.pengaduanTerbuka), sev: m.pengaduanLebih7Hari ? 'warning' : null, sub: m.pengaduanLebih7Hari ? `${m.pengaduanLebih7Hari} belum ditangani lebih dari 7 hari` : 'Semua ditangani < 7 hari' }),
+        tile({ label: 'Warga terdaftar di aplikasi', value: fmt(wv.terdaftarApp), sub: `${pct(terdaftarPct, 0)} dari ${fmt(wv.penduduk)} penduduk · rating ${nfd(1).format(m.rating)}/5 (${fmt(m.jumlahUlasan)} ulasan)` }),
+        tile({ label: 'Pengaduan warga terbuka', value: fmt(pg.terbuka), sev: pg.lebih7Hari ? 'warning' : null, sub: pg.lebih7Hari ? `${pg.lebih7Hari} belum ditangani lebih dari 7 hari` : 'Semua ditangani < 7 hari' }),
       ),
       grid2(
         card({
@@ -354,7 +362,7 @@
 
   function secKiosk() {
     const k = D.kiosk;
-    const tr = periodStats(k.transaksiHarian);
+    const tr = periodStats(k.transaksiHarian, 'sum', 'transaksiKiosk');
     const online = k.perangkat.filter((p) => p.status === 'online').length;
     const offline = k.perangkat.length - online;
     const lowPaper = k.perangkat.filter((p) => p.kertasPersen < 20);
@@ -385,7 +393,7 @@
         title: 'Status tiap kiosk', sub: 'Kondisi saat ini',
         tableOnly: [
           ['Kiosk', 'Lokasi', 'Status', 'Uptime 30 hari', 'Transaksi hari ini', 'Kertas', 'Catatan'],
-          k.perangkat.map((p) => [p.nama, p.lokasi, pill(sevOf(p.status), p.status === 'online' ? 'Online' : 'Offline'), pct(p.uptime30), fmt(p.transaksiHariIni),
+          k.perangkat.map((p) => [p.nama, p.lokasi, pill(sevOf(p.status), p.status === 'online' ? 'Online' : 'Offline'), pct(p.uptime30), fmt(p.transaksiHariIni * share('transaksiKiosk', state.status)),
             p.kertasPersen < 20 ? pill('warning', pct(p.kertasPersen, 0)) : pct(p.kertasPersen, 0), p.catatan]),
           { tall: true, numCols: [3, 4] },
         ],
@@ -434,48 +442,74 @@
   }
 
   function secWarga() {
-    const w = D.warga;
-    const mt = w.mutasi30Hari;
+    const st = state.status, w = wargaView(st), mt = w.mutasi;
+    const lab = statusLabel(st).toLowerCase();
+    const totalSemua = sum(w.komposisi.map((c) => c.value));
     const net = mt.lahir + mt.datang - mt.meninggal - mt.pindah;
+    const signed = (n) => (n >= 0 ? '+' : '−') + fmt(Math.abs(n));
     const lengkap = (v) => (v >= 90 ? 'ok' : v >= 75 ? 'warning' : 'critical');
     const terendah = w.kelengkapan.reduce((a, b) => (b.value < a.value ? b : a));
-    const insight = `${fmt(w.penduduk)} penduduk dalam ${fmt(w.kepalaKeluarga)} KK. Data paling tertinggal: "${terendah.label}" (${pct(terendah.value)}).`;
+    const insight = `${fmt(w.penduduk)} penduduk${st === 'semua' ? '' : ` berstatus ${lab} (${pct((w.penduduk / totalSemua) * 100, 0)} dari seluruh warga)`} dalam ${fmt(w.kepalaKeluarga)} KK. Data paling tertinggal: "${terendah.label}" (${pct(terendah.value)}).`;
+
+    const parts = w.komposisi.map((c) => ({ key: c.key, name: c.label, color: STATUS_COLOR[c.key] }));
+    const komposisiRows = [{
+      label: 'Seluruh warga', right: `${fmt(totalSemua)} jiwa`,
+      values: Object.fromEntries(w.komposisi.map((c) => [c.key, c.value])),
+    }];
+    const kv = el('dl', { class: 'kv kv-keys' });
+    w.komposisi.forEach((c) => {
+      const on = st === 'semua' || st === c.key;
+      kv.append(
+        el('dt', { class: on ? 'on' : 'off' }, [el('i', { class: 'box', style: 'background:' + STATUS_COLOR[c.key] }), c.label]),
+        el('dd', { class: on ? 'on' : 'off', text: `${fmt(c.value)} jiwa · ${pct((c.value / totalSemua) * 100, 0)}` })
+      );
+    });
+    kv.append(el('dt', { text: 'Total' }), el('dd', { text: `${fmt(totalSemua)} jiwa` }));
+
     return section('warga', '4', 'Data Digital Warga', insight,
       tiles(
-        tile({ label: 'Jumlah penduduk', value: fmt(w.penduduk), sub: `${fmt(w.lakiLaki)} laki-laki · ${fmt(w.perempuan)} perempuan` }),
-        tile({ label: 'Kepala keluarga', value: fmt(w.kepalaKeluarga), sub: `rata-rata ${nfd(1).format(w.penduduk / w.kepalaKeluarga)} jiwa per KK` }),
-        tile({ label: 'Pertumbuhan 30 hari', value: (net >= 0 ? '+' : '−') + fmt(Math.abs(net)), sub: 'lahir + datang − meninggal − pindah' }),
+        tile({ label: st === 'semua' ? 'Jumlah penduduk' : `Penduduk ${lab}`, value: fmt(w.penduduk), sub: `${fmt(w.lakiLaki)} laki-laki · ${fmt(w.perempuan)} perempuan` }),
+        tile({ label: 'Kepala keluarga', value: fmt(w.kepalaKeluarga), sub: `rata-rata ${nfd(1).format(w.penduduk / (w.kepalaKeluarga || 1))} jiwa per KK` }),
+        tile({ label: 'Pertumbuhan 30 hari', value: signed(net), sub: 'lahir + datang − meninggal − pindah' }),
         tile({ label: 'Data lengkap (rata-rata)', value: pct(avg(w.kelengkapan.map((k) => k.value)), 0), sub: `${w.kelengkapan.length} indikator kelengkapan` }),
       ),
       grid2(
         card({
-          title: 'Penduduk per dusun', sub: 'Jumlah jiwa',
-          build: (h) => hbarChart(h, { items: w.perDusun }),
-          table: [['Dusun', 'Penduduk'], w.perDusun.map((d) => [d.label, fmt(d.value)]), { numCols: [1] }],
+          title: 'Jumlah warga menurut status perkawinan', sub: st === 'semua' ? 'Seluruh warga desa' : `Status ${lab} disorot, perbandingan tetap seluruh warga`,
+          build: (h) => {
+            stackChart(h, { parts, rows: komposisiRows, active: st === 'semua' ? null : [st] });
+            h.append(kv, el('p', { class: 't-sub', style: 'margin-top:10px', text: `Lajang = belum kawin, termasuk ${fmt(w.anakLajang)} anak usia di bawah 18 tahun. Cerai = cerai hidup dan cerai mati.` }));
+          },
+          table: [['Status', 'Jumlah', 'Persen'], w.komposisi.map((c) => [c.label, fmt(c.value), pct((c.value / totalSemua) * 100)]), { numCols: [1, 2] }],
         }),
         card({
-          title: 'Penduduk menurut kelompok usia', sub: 'Jumlah jiwa',
-          build: (h) => hbarChart(h, { items: w.perUsia }),
-          table: [['Kelompok usia', 'Penduduk'], w.perUsia.map((d) => [d.label, fmt(d.value)]), { numCols: [1] }],
-        })
-      ),
-      grid2(
-        card({
-          title: 'Kelengkapan data digital', sub: '% warga dengan data sudah lengkap · ≥ 90% baik, 75–89% waspada, < 75% kritis',
-          build: (h) => h.append(el('div', { class: 'meters' }, w.kelengkapan.map((k) => meterEl({ label: k.label, value: k.value, valText: pct(k.value), sev: lengkap(k.value) })))),
-          table: [['Indikator', 'Persen'], w.kelengkapan.map((k) => [k.label, pct(k.value)]), { numCols: [1] }],
-        }),
-        card({
-          title: 'Mutasi penduduk', sub: '30 hari terakhir (tidak mengikuti filter periode)',
+          title: 'Mutasi penduduk', sub: `30 hari terakhir (tidak mengikuti filter periode)${st === 'semua' ? '' : ` · ${lab}`}`,
           build: (h) => h.append(el('dl', { class: 'kv' }, [
             el('dt', { text: 'Kelahiran' }), el('dd', { text: fmt(mt.lahir) }),
             el('dt', { text: 'Pendatang' }), el('dd', { text: fmt(mt.datang) }),
             el('dt', { text: 'Kematian' }), el('dd', { text: fmt(mt.meninggal) }),
             el('dt', { text: 'Pindah keluar' }), el('dd', { text: fmt(mt.pindah) }),
-            el('dt', { text: 'Selisih bersih' }), el('dd', { text: (net >= 0 ? '+' : '−') + fmt(Math.abs(net)) }),
+            el('dt', { text: 'Selisih bersih' }), el('dd', { text: signed(net) }),
           ])),
         })
-      )
+      ),
+      grid2(
+        card({
+          title: 'Penduduk per dusun', sub: `Jumlah jiwa${st === 'semua' ? '' : ` · ${lab}`}`,
+          build: (h) => hbarChart(h, { items: w.perDusun }),
+          table: [['Dusun', 'Penduduk'], w.perDusun.map((d) => [d.label, fmt(d.value)]), { numCols: [1] }],
+        }),
+        card({
+          title: 'Penduduk menurut kelompok usia', sub: `Jumlah jiwa${st === 'semua' ? '' : ` · ${lab}`}`,
+          build: (h) => hbarChart(h, { items: w.perUsia }),
+          table: [['Kelompok usia', 'Penduduk'], w.perUsia.map((d) => [d.label, fmt(d.value)]), { numCols: [1] }],
+        })
+      ),
+      card({
+        title: 'Kelengkapan data digital', sub: '% warga dengan data sudah lengkap · ≥ 90% baik, 75–89% waspada, < 75% kritis',
+        build: (h) => h.append(el('div', { class: 'meters cols2' }, w.kelengkapan.map((k) => meterEl({ label: k.label, value: k.value, valText: pct(k.value), sev: lengkap(k.value) })))),
+        table: [['Indikator', 'Persen'], w.kelengkapan.map((k) => [k.label, pct(k.value)]), { numCols: [1] }],
+      })
     );
   }
 
@@ -590,14 +624,14 @@
 
   /* ============================== ringkasan & peringatan ============================== */
   function overview() {
-    const sel = periodStats(D.mobile.selesaiHarian), kio = periodStats(D.kiosk.transaksiHarian);
+    const sel = periodStats(D.mobile.selesaiHarian, 'sum', 'pengajuan'), kio = periodStats(D.kiosk.transaksiHarian, 'sum', 'transaksiKiosk');
     const total = sel.c + kio.c, prev = sel.p + kio.p;
     const chg = changePct(total, prev);
-    const alerts = buildAlerts();
+    const alerts = buildAlerts(state.status);
     const nCrit = alerts.filter((a) => a.sev === 'critical').length;
 
     const hero = el('article', { class: 'card hero' }, [
-      el('div', { class: 'hero-label', text: `Layanan digital terselesaikan · ${state.days} hari terakhir` }),
+      el('div', { class: 'hero-label', text: `Layanan digital terselesaikan · ${state.days} hari terakhir${state.status === 'semua' ? '' : ' · warga ' + statusLabel(state.status).toLowerCase()}` }),
       el('div', { class: 'hero-val', text: fmt(total) }),
       el('div', { class: 'hero-sub' }, [
         el('span', { style: 'font-weight:600;color:var(--' + (chg >= 0 ? 'good-text' : 'crit-text') + ')', text: (chg >= 0 ? '▲ +' : '▼ −') + fmt1(Math.abs(chg)) + '%' }),
@@ -671,6 +705,27 @@
         setTimeout(() => { render(); app.classList.remove('is-loading'); }, 120);
       });
       per.append(b);
+    });
+
+    // filter status perkawinan (berlaku untuk aplikasi warga, transaksi kiosk, dan data warga)
+    const stBox = document.getElementById('status');
+    STATUS.forEach(({ key, label }) => {
+      const b = el('button', { type: 'button', role: 'radio', 'aria-checked': String(key === state.status), 'data-s': key }, [
+        check(), key !== 'semua' ? el('i', { class: 'dot', style: 'background:' + STATUS_COLOR[key] }) : null, label,
+      ]);
+      b.addEventListener('click', () => {
+        if (state.status === key) return;
+        state.status = key;
+        stBox.querySelectorAll('button').forEach((x) => x.setAttribute('aria-checked', String(x.dataset.s === key)));
+        try {
+          const u = new URL(location.href);
+          if (key === 'semua') u.searchParams.delete('status'); else u.searchParams.set('status', key);
+          history.replaceState(null, '', u);
+        } catch (e) { /* mis. dibuka dari file:// di beberapa browser */ }
+        app.classList.add('is-loading');
+        setTimeout(() => { render(); app.classList.remove('is-loading'); }, 120);
+      });
+      stBox.append(b);
     });
 
     const root = document.documentElement, btn = document.getElementById('theme-btn');

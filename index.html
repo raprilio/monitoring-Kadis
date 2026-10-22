@@ -18,6 +18,7 @@
     --border: rgba(11, 11, 11, 0.10);
     --s1: #2a78d6;
     --s2: #eb6834;
+    --st1: #eb6834; --st2: #1baf7a; --st3: #6250d6; /* menikah, lajang, cerai */
     --neutral-seg: #c3c2b7;
     --good: #0ca30c;
     --warn: #fab219;
@@ -38,6 +39,7 @@
       --border: rgba(255, 255, 255, 0.10);
       --s1: #3987e5;
       --s2: #d95926;
+      --st1: #d95926; --st2: #199e70; --st3: #9085e9;
       --neutral-seg: #55544f;
       --good-text: #0ca30c;
       --crit-text: #e66767;
@@ -55,6 +57,7 @@
     --border: rgba(255, 255, 255, 0.10);
     --s1: #3987e5;
     --s2: #d95926;
+    --st1: #d95926; --st2: #199e70; --st3: #9085e9;
     --neutral-seg: #55544f;
     --good-text: #0ca30c;
     --crit-text: #e66767;
@@ -62,7 +65,7 @@
   }
 
   * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; scroll-padding-top: 120px; }
+  html { scroll-behavior: smooth; scroll-padding-top: 170px; }
   body {
     margin: 0;
     background: var(--page);
@@ -106,6 +109,14 @@
   .seg-ctl button[aria-checked="true"] { font-weight: 600; background: color-mix(in srgb, var(--s1) 12%, var(--surface)); }
   .seg-ctl .chk { width: 14px; height: 14px; visibility: hidden; }
   .seg-ctl button[aria-checked="true"] .chk { visibility: visible; }
+  .seg-ctl .dot { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+  .filter-note { font-size: 12.5px; color: var(--ink2); padding-bottom: 8px; }
+  .nofilter { display: inline-block; margin-left: 10px; padding: 0 8px; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; font-weight: 400; color: var(--ink2); vertical-align: 2px; }
+  .stack-seg.dim { opacity: .3; }
+  .kv-keys dt { display: flex; align-items: center; gap: 8px; }
+  .kv-keys .box { width: 12px; height: 12px; border-radius: 3px; }
+  .kv-keys .off { color: var(--muted); font-weight: 400; }
+  .meters.cols2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 14px 32px; }
   .updated { font-size: 12.5px; color: var(--ink2); margin-left: auto; }
   .jump { display: flex; gap: 6px; overflow-x: auto; padding: 0 0 10px; scrollbar-width: thin; }
   .jump a {
@@ -200,6 +211,7 @@
     .overview { grid-template-columns: 1fr; }
   }
   @media (max-width: 860px) { .overview { grid-template-columns: 1fr; } }
+  @media (max-width: 700px) { .filter-note { display: none; } }
 
   .stack-rows { display: flex; flex-direction: column; gap: 12px; }
   .stack-row { border-radius: 6px; }
@@ -275,8 +287,11 @@
     <div class="filter-row">
       <span class="lbl" id="periode-lbl">Periode</span>
       <div class="seg-ctl" role="radiogroup" aria-labelledby="periode-lbl" id="periode"></div>
+      <span class="lbl" id="status-lbl">Status perkawinan</span>
+      <div class="seg-ctl" role="radiogroup" aria-labelledby="status-lbl" id="status"></div>
       <span class="updated" id="updated"></span>
     </div>
+    <p class="filter-note">Filter status berlaku untuk aplikasi warga, transaksi kiosk, dan data warga. Server, aset, dan blangko tidak terkait status perkawinan.</p>
     <nav class="jump" aria-label="Loncat ke bagian" id="jump"></nav>
   </div>
 </div>
