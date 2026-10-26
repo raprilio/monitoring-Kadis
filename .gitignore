@@ -1,2 +1,6 @@
 # Distribution archives are generated, not versioned
 *.zip
+
+# Rust build output and runtime data (visitor records!)
+/target/
+/data/

@@ -32,7 +32,7 @@
   }
 
   function tickClock() {
-    $('#clock').textContent = WG.fmtTime(Date.now());
+    $('#clock').textContent = WG.fmtTime(WG.now());
     if (active === 'tv') WG.views.tv.tick();
   }
 
@@ -44,7 +44,8 @@
     window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (TABS.includes(t)) show(t); });
 
     $('#btnPanic').addEventListener('click', WG.togglePanic);
-    $('#btnSound').addEventListener('click', () => WG.updateSettings({ sound: !WG.S.settings.sound }));
+    $('#offPill').addEventListener('click', () => WG.reauth && WG.reauth());
+    $('#btnSound').addEventListener('click', () => WG.setSound(!WG.sound));
 
     WG.on('change', refresh);
     setInterval(tickClock, 1000);
@@ -54,7 +55,11 @@
     tickClock();
     WG.renderHeader();
     show(active);
+    WG.startSync();
   }
 
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', async () => {
+    await WG.loadInitial(); // first paint with real data when the server is reachable
+    init();
+  });
 })();

@@ -1,44 +1,69 @@
 # Wisata Gateway
 
-Digital guestbook & access controller for a tourist park — a browser-based **simulator** of a 6-turnstile
-entry/exit system with e-KTP tap, anti-passback, capacity control, a public TV billboard, reports, group passes
-and rule-based insights. UI language: Indonesian. Timezone: WIB (UTC+7, fixed).
-
-No build step and no dependencies. Open `index.html` in a browser (or serve the folder with any static server).
-Everything is saved to the browser's `localStorage`.
+Digital guestbook & access controller for a tourist park: a **Rust server** that owns every access rule and all
+data, plus a browser UI for 6 turnstiles (3 in / 3 out), e-KTP tap, anti-passback, capacity control, a public TV
+billboard, reports, group passes and rule-based insights. UI language: Indonesian. Timezone: WIB (UTC+7, fixed).
 
 ```
-index.html      page shell (6 tabs)
-css/style.css   dark control-room theme, responsive, print styles for the report
-js/core.js      state, persistence, access engine (tap / group / manual / panic), demo data
-js/ui.js        shared UI (toast, confirm, icons, header) + Turnstiles Controller view
-js/tabs.js      TV billboard, analytics, guestbook & logs, group pass & insights, settings
-js/main.js      tab routing (#tv, #analytics, …), clock, render scheduling
+Cargo.toml
+src/main.rs     bootstrap, env config, 200 ms ticker (re-lock gates, auto-traffic, autosave), graceful shutdown
+src/engine.rs   ALL rules: NIK check, anti-passback, capacity, panic, group pass, manual override, settings
+src/model.rs    persistent data model + sanitising of untrusted JSON (data file / imported backup)
+src/util.rs     WIB time maths, NIK parsing & masking
+src/demo.rs     fictitious visitors + demo data (everything tagged "sim")
+src/api.rs      JSON API under /api, optional officer token, long-poll sync, embedded static UI
+web/            the UI (HTML/CSS/JS, no build step) — embedded into the binary on release builds
 ```
+
+The browser only renders and sends commands. Rules and storage are in Rust, so several machines (entry gates,
+TV, supervisor) share one live state.
+
+## Run
+
+```bash
+cargo run --release            # http://127.0.0.1:8080   (data in ./data/state.json)
+cargo test                     # 21 unit tests for the rules
+```
+
+| Env var | Default | Meaning |
+| --- | --- | --- |
+| `WG_BIND` | `127.0.0.1:8080` | Address to listen on |
+| `WG_DATA` | `data/state.json` | Data file (atomic writes, saved ≈1 s after a change and on shutdown) |
+| `WG_TOKEN` | *(unset)* | Officer token. Required on every `/api` call as header `x-wg-token`; the UI asks for it once per tab |
+
+**Network use:** to let other machines connect, e.g. `WG_BIND=0.0.0.0:8080 WG_TOKEN=<secret> cargo run --release`.
+The server **refuses to start** on a non-loopback address without `WG_TOKEN`, because the API can open gates and
+export every NIK. The token travels in clear text over HTTP: put it behind HTTPS (reverse proxy) or keep it on a
+trusted LAN/VPN. There is no per-user login or brute-force lockout.
+
+The TV board can run on any screen: `http://<server>:8080/#tv`.
 
 ## What it does
 
 | Tab | Highlights |
 | --- | --- |
-| Turnstiles Controller | Live stats, per-gate officer override (open / hold / lock), 3 entry + 3 exit gates with animated state, one-click preset e-KTP cards, manual e-KTP form with live NIK validation, real-time log terminal, Auto Traffic demo mode |
-| TV Public Billboard | Occupancy gauge with traffic-light status, free quota, welcome feed (first name + city only), guestbook quotes, scrolling announcements, fullscreen. Open it directly with `index.html#tv` on a second screen |
-| Analytics & Reports | Per-day KPIs, hourly in/out chart, category mix, top origin cities, gate throughput, revenue estimate, CSV export, print |
-| Guestbook & Logs | Filterable access log (search, direction, result, gate) with CSV export; digital guestbook with ratings |
-| Group Pass & AI | Register a party once; one tap admits/releases everyone. "Smart Insights" = local rule-based checks (capacity ETA, gate imbalance, repeated anti-passback denials, frequent overrides, forgotten exits) — **not** an LLM |
-| Settings | Capacity, re-lock delay, anti-passback, sound, gate names, ticket prices, TV announcements, demo data, JSON backup/restore, resets |
+| Turnstiles Controller | Live stats, per-gate officer override (open / hold / lock), animated gates, preset e-KTP cards, manual form with live NIK hint, real-time log terminal, server-side Auto Traffic demo |
+| TV Public Billboard | Occupancy gauge with traffic-light status, free quota, welcome feed (first name + city only), guestbook quotes, announcements, fullscreen |
+| Analytics & Reports | Per-day KPIs, hourly chart, category mix, top cities, gate throughput, revenue estimate, CSV export, print |
+| Guestbook & Logs | Filterable access log (+CSV), digital guestbook with ratings |
+| Group Pass & AI | One tap admits/releases a registered party. "Smart Insights" = local rule-based checks (capacity ETA, gate imbalance, repeated denials, frequent overrides, forgotten exits) — **not** an LLM |
+| Settings | Capacity, re-lock delay, anti-passback, gate names, ticket prices, announcements, demo data, JSON backup/restore, resets |
 
-Access rules: 1 NIK = 1 entry and 1 exit (toggle in Settings); entries are refused at capacity and while Panic Gate is
-active; exits are always allowed in an emergency.
+Rules: 1 NIK = 1 entry and 1 exit (toggle in Settings); entries are refused at capacity and during Panic Gate; exits
+are always allowed in an emergency. Old JSON backups from the earlier browser-only version can be restored.
 
 ## Limits you should know about
 
-- **Simulator, not hardware.** Nothing talks to real turnstiles or card readers yet. The "Hardware Telemetry" card is
-  labelled `SIMULASI` for that reason. Integration would go through `WG.tap()` / `WG.manualOpen()` in `js/core.js`.
-- **NIK validation is structural only** (16 digits, known province code, plausible birth date). It does not verify that a
-  card is genuine — that needs an e-KTP chip reader / Dukcapil check. Camera OCR is not implemented.
-- **Single device, single browser.** State lives in `localStorage` (last 8,000 access records kept). Multiple gates on
-  different machines would need a shared backend.
-- **Personal data.** NIK is masked everywhere on screen and in CSV exports; the JSON backup contains full NIKs. Decide
-  on retention and consent before using real data (UU PDP).
-- **Manual overrides** log an audit record but do not change the occupancy count (nobody is identified).
-- Demo/auto-traffic records are tagged and can be removed from Settings without touching real records.
+- **Simulator, not hardware.** Nothing talks to real turnstiles or card readers yet. Integration point: `Engine::tap`
+  / `manual_open` in `src/engine.rs` (e.g. a reader posting to `POST /api/tap`). The "Hardware Telemetry" card is
+  labelled `SIMULASI`.
+- **NIK validation is structural only** (16 digits, known province, plausible birth date). It cannot tell a real
+  KTP from a made-up number; that needs an e-KTP chip reader / Dukcapil check. Camera OCR is not implemented.
+- **Personal data.** The server never sends full NIKs to the browser (masked first4…last4 in API output, screens and
+  CSV). The data file and the token-protected JSON backup contain full NIKs and names: protect the machine, decide
+  retention and consent (UU PDP) before using real visitors. The public TV shows first names — a typed name appears
+  there unmoderated.
+- **Single server process, one data file** (last 8,000 access records kept). Not a cluster; no history beyond that.
+- **Manual overrides** are audited but do not change the head count (nobody is identified).
+- `/api/export` and `/api/import` use the same token as everything else; there is no separate admin role.
+- Demo / auto-traffic records are tagged and can be removed from Settings without touching real records.

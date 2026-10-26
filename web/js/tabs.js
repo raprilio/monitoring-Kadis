@@ -20,7 +20,7 @@
     render() {
       const S = WG.S, st = WG.stats();
       $('#tvPark').textContent = S.settings.parkName;
-      $('#tvDate').textContent = WG.fmtDateLong(Date.now());
+      $('#tvDate').textContent = WG.fmtDateLong(WG.now());
       const pct = Math.min(1, st.occupancy);
       $('#tvRing').style.strokeDasharray = `${(pct * 540.35).toFixed(1)} 540.35`;
       $('#tvPct').textContent = Math.round(st.occupancy * 100) + '%';
@@ -56,10 +56,10 @@
       this.tick(true);
     },
     tick(force) {
-      const d = new Date(Date.now() + 7 * 3600e3);
+      const d = new Date(WG.now() + 7 * 3600e3);
       $('#tvClock').textContent = `${WG.pad(d.getUTCHours())}.${WG.pad(d.getUTCMinutes())}`;
       const gb = WG.S.guestbook;
-      const idx = gb.length ? Math.floor(Date.now() / 8000) % Math.min(gb.length, 10) : -1;
+      const idx = gb.length ? Math.floor(WG.now() / 8000) % Math.min(gb.length, 10) : -1;
       if (idx !== lastQuote || force) {
         lastQuote = idx;
         const m = idx >= 0 ? gb[gb.length - 1 - idx] : null;
@@ -236,10 +236,11 @@
         const b = e.target.closest('[data-r]');
         if (b) { rating = +b.dataset.r; renderStars(); }
       });
-      $('#gbForm').addEventListener('submit', (e) => {
+      $('#gbForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         if (!$('#gbText').value.trim()) return;
-        WG.addGuestbook({ name: $('#gbName').value, text: $('#gbText').value, rating });
+        const r = await WG.addGuestbook({ name: $('#gbName').value, text: $('#gbText').value, rating });
+        if (!r.ok) return; // the client already showed the reason; keep the typed text
         $('#gbForm').reset();
         rating = 5;
         renderStars();
@@ -267,7 +268,7 @@
 
   /* ================================================================== GROUP PASS + INSIGHTS */
   function insights() {
-    const S = WG.S, st = WG.stats(), now = Date.now();
+    const S = WG.S, st = WG.stats(), now = WG.now();
     const out = [];
     const add = (level, title, detail) => out.push({ level, title, detail });
 
@@ -329,11 +330,12 @@
   const group = {
     init() {
       $('#gpCat').innerHTML = Object.entries(WG.CATEGORIES).map(([k, c]) => `<option value="${k}">${c.label}</option>`).join('');
-      $('#gpForm').addEventListener('submit', (e) => {
+      $('#gpForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const size = Math.round(+$('#gpSize').value);
         if (!(size >= 2 && size <= 500)) return WG.toast('Jumlah rombongan 2–500 orang.', 'err');
-        WG.addGroup({ name: $('#gpName').value, leader: $('#gpLeader').value, city: $('#gpCity').value, category: $('#gpCat').value, size });
+        const r = await WG.addGroup({ name: $('#gpName').value, leader: $('#gpLeader').value, city: $('#gpCity').value, category: $('#gpCat').value, size });
+        if (!r.ok) return;
         $('#gpForm').reset();
         $('#gpSize').value = 20;
         WG.toast('Group pass terdaftar.');
@@ -343,8 +345,8 @@
         if (!b) return;
         const id = b.dataset.id;
         if (b.dataset.g === 'in' || b.dataset.g === 'out') {
-          const r = WG.tapGroup(id, gateFor(b.dataset.g));
-          if (!r.ok) WG.toast(r.reason, 'err');
+          const r = await WG.tapGroup(id, gateFor(b.dataset.g));
+          if (!r.ok && !r.error) WG.toast(r.reason, 'err');
         } else if (await WG.confirm('Hapus group pass?', 'Rombongan dihapus dari daftar. Catatan akses yang sudah ada tetap tersimpan.', 'Hapus', true)) WG.removeGroup(id);
       });
     },
@@ -367,8 +369,8 @@
   /* ================================================================== SETTINGS */
   async function loadDemoWithConfirm() {
     if (WG.S.visits.some((v) => !v.sim) && !(await WG.confirm('Isi data demo?', 'Data demo akan bercampur dengan catatan nyata Anda. Data demo bisa dihapus lagi dari Pengaturan.', 'Isi data demo'))) return;
-    WG.loadDemo();
-    WG.toast('Data demo dimuat.');
+    const r = await WG.loadDemo();
+    if (r.ok) WG.toast('Data demo dimuat.');
   }
 
   const settings = {
@@ -378,17 +380,17 @@
       const S = () => WG.S.settings;
       $('#sName').addEventListener('change', (e) => WG.updateSettings({ parkName: e.target.value.trim() || S().parkName }));
       $('#sSub').addEventListener('change', (e) => WG.updateSettings({ subtitle: e.target.value }));
-      $('#sCap').addEventListener('change', (e) => WG.updateSettings({ capacity: e.target.value }));
-      $('#sRelock').addEventListener('change', (e) => WG.updateSettings({ relockSec: e.target.value }));
+      $('#sCap').addEventListener('change', (e) => WG.updateSettings({ capacity: Number(e.target.value) }));
+      $('#sRelock').addEventListener('change', (e) => WG.updateSettings({ relockSec: Number(e.target.value) }));
       $('#sAp').addEventListener('change', (e) => WG.updateSettings({ antiPassback: e.target.checked }));
-      $('#sSound').addEventListener('change', (e) => WG.updateSettings({ sound: e.target.checked }));
+      $('#sSound').addEventListener('change', (e) => WG.setSound(e.target.checked));
       $('#sAnn').addEventListener('change', (e) => WG.updateSettings({ announcements: e.target.value.split('\n').map((s) => s.trim()).filter(Boolean) }));
       $('#sGates').addEventListener('change', (e) => { const id = e.target.dataset.gate; if (id) WG.updateSettings({ gateNames: { ...S().gateNames, [id]: e.target.value.trim() || S().gateNames[id] } }); });
-      $('#sPrices').addEventListener('change', (e) => { const k = e.target.dataset.price; if (k) WG.updateSettings({ prices: { ...S().prices, [k]: e.target.value } }); });
+      $('#sPrices').addEventListener('change', (e) => { const k = e.target.dataset.price; if (k) WG.updateSettings({ prices: { ...S().prices, [k]: Number(e.target.value) } }); });
 
       $('#btnDemo').addEventListener('click', loadDemoWithConfirm);
-      $('#btnClearSim').addEventListener('click', async () => { if (await WG.confirm('Hapus data demo?', 'Hanya catatan bertanda demo/simulasi yang dihapus. Catatan nyata tidak disentuh.', 'Hapus data demo', true)) { WG.clearSim(); WG.toast('Data demo dihapus.'); } });
-      $('#btnBackup').addEventListener('click', () => WG.download(`wisata-gateway-backup-${WG.stats().today}.json`, WG.exportJson(), 'application/json'));
+      $('#btnClearSim').addEventListener('click', async () => { if (await WG.confirm('Hapus data demo?', 'Hanya catatan bertanda demo/simulasi yang dihapus. Catatan nyata tidak disentuh.', 'Hapus data demo', true)) { const r = await WG.clearSim(); if (r.ok) WG.toast('Data demo dihapus.'); } });
+      $('#btnBackup').addEventListener('click', () => WG.exportBackup());
       $('#fileRestore').addEventListener('change', async (e) => {
         const f = e.target.files[0];
         e.target.value = '';
@@ -396,12 +398,12 @@
         try {
           const text = await f.text();
           if (!(await WG.confirm('Restore backup?', 'Seluruh data saat ini akan diganti dengan isi file backup.', 'Restore', true))) return;
-          WG.importJson(text);
-          WG.toast('Backup dipulihkan.');
+          const r = await WG.importJson(text);
+          if (r.ok) WG.toast('Backup dipulihkan.');
         } catch (err) { WG.toast(err.message || 'File backup tidak valid.', 'err'); }
       });
-      $('#btnResetToday').addEventListener('click', async () => { if (await WG.confirm('Reset data hari ini?', 'Catatan akses hari ini dihapus dan semua pengunjung dianggap sudah keluar. Gunakan saat tutup operasional. Tidak bisa dibatalkan.', 'Reset hari ini', true)) { WG.resetToday(); WG.toast('Data hari ini direset.'); } });
-      $('#btnFactory').addEventListener('click', async () => { if (await WG.confirm('Reset total?', 'SEMUA data & pengaturan dihapus dari browser ini. Pertimbangkan Backup JSON dulu. Tidak bisa dibatalkan.', 'Hapus semuanya', true)) { WG.factoryReset(); WG.toast('Semua data direset.'); } });
+      $('#btnResetToday').addEventListener('click', async () => { if (await WG.confirm('Reset data hari ini?', 'Catatan akses hari ini dihapus dan semua pengunjung dianggap sudah keluar. Gunakan saat tutup operasional. Tidak bisa dibatalkan.', 'Reset hari ini', true)) { const r = await WG.resetToday(); if (r.ok) WG.toast('Data hari ini direset.'); } });
+      $('#btnFactory').addEventListener('click', async () => { if (await WG.confirm('Reset total?', 'SEMUA data & pengaturan dihapus dari server ini (semua perangkat gate). Pertimbangkan Backup JSON dulu. Tidak bisa dibatalkan.', 'Hapus semuanya', true)) { const r = await WG.factoryReset(); if (r.ok) WG.toast('Semua data direset.'); } });
     },
     render() {
       const s = WG.S.settings;
@@ -409,7 +411,7 @@
       set('#sName', s.parkName); set('#sSub', s.subtitle); set('#sCap', s.capacity); set('#sRelock', s.relockSec);
       set('#sAnn', s.announcements.join('\n'));
       $('#sAp').checked = s.antiPassback;
-      $('#sSound').checked = s.sound;
+      $('#sSound').checked = WG.sound;
       $$('#sGates input').forEach((i) => set(`#sGates input[data-gate="${i.dataset.gate}"]`, s.gateNames[i.dataset.gate]));
       $$('#sPrices input').forEach((i) => { if (document.activeElement !== i) i.value = s.prices[i.dataset.price]; });
     },

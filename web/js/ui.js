@@ -95,9 +95,11 @@
     el.className = 'sys ' + ss.key;
     el.textContent = '● ' + ss.label;
     $('#simPill').hidden = !st.hasSim;
-    $('#btnSound').innerHTML = WG.icon(S.settings.sound ? 'volume' : 'mute');
-    $('#btnSound').setAttribute('aria-pressed', S.settings.sound);
-    $('#btnSound').title = S.settings.sound ? 'Suara aktif (klik untuk matikan)' : 'Suara mati (klik untuk aktifkan)';
+    $('#btnSound').innerHTML = WG.icon(WG.sound ? 'volume' : 'mute');
+    $('#btnSound').setAttribute('aria-pressed', WG.sound);
+    $('#btnSound').title = WG.sound ? 'Suara aktif di perangkat ini (klik untuk matikan)' : 'Suara mati di perangkat ini (klik untuk aktifkan)';
+    $('#offPill').hidden = WG.online;
+    $('#offPill').textContent = WG.needToken ? 'MASUKKAN TOKEN' : 'OFFLINE';
     $('#btnPanic').innerHTML = WG.icon('alert') + (S.panic ? 'NORMALKAN' : 'PANIC GATE');
     $('#btnPanic').classList.toggle('active', S.panic);
     $('#btnPanic2').classList.toggle('active', S.panic);
@@ -211,8 +213,8 @@
     const S = WG.S;
     const tg = WG.gateById(S.target);
     $('#tapHint').textContent = `Tap ke: ${tg.id} (${tg.dir === 'in' ? 'masuk' : 'keluar'})`;
-    $('#presets').innerHTML = WG.PRESETS.map((p) => {
-      const inside = S.visitors[p.nik] && S.visitors[p.nik].inside;
+    $('#presets').innerHTML = WG.presets.map((p) => {
+      const inside = p.inside;
       return `<button type="button" class="preset ${inside ? 'inside' : ''} cat-${p.category}" data-nik="${p.nik}">
         <div class="p-top"><span class="mono dim">${p.nik.slice(0, 4)}...${p.nik.slice(-4)}</span><span class="badge ${inside ? 'amber' : p.category}">${inside ? 'Di Dalam' : WG.CATEGORIES[p.category].label}</span></div>
         <b>${esc(p.name)}</b><small>${esc(p.note)}</small><span class="tap">TAP CARD →</span></button>`;
@@ -261,16 +263,17 @@
       }
     });
 
-    const doTap = (p) => {
-      const r = WG.tap({ ...p, gateId: WG.S.target });
-      if (!r.ok) WG.toast(r.reason, 'err');
+    // Business denials (anti-passback, capacity…) come back as ok:false; transport errors are toasted by the client.
+    const doTap = async (p) => {
+      const r = await WG.tap({ ...p, gateId: WG.S.target });
+      if (!r.ok && !r.error) WG.toast(r.reason, 'err');
       return r;
     };
     $('#presets').addEventListener('click', (e) => {
       const b = e.target.closest('.preset');
       if (!b) return;
-      const p = WG.PRESETS.find((x) => x.nik === b.dataset.nik);
-      doTap(p);
+      const p = WG.presets.find((x) => x.nik === b.dataset.nik);
+      if (p) doTap(p);
     });
 
     $('#fNik').addEventListener('input', () => {
@@ -285,15 +288,15 @@
         }
       }
     });
-    $('#btnFill').addEventListener('click', () => {
-      const p = WG.randomPersona();
+    $('#btnFill').addEventListener('click', async () => {
+      const p = await WG.randomPersona();
       if (!p) return;
       $('#fNik').value = p.nik; $('#fName').value = p.name; $('#fCity').value = p.city; $('#fProv').value = p.province; $('#fCat').value = p.category;
       nikHint();
     });
-    $('#ktpForm').addEventListener('submit', (e) => {
+    $('#ktpForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const r = doTap({
+      const r = await doTap({
         nik: $('#fNik').value, name: $('#fName').value, city: $('#fCity').value, province: $('#fProv').value, category: $('#fCat').value,
       });
       if (r.ok) {
