@@ -36,6 +36,7 @@
   .nav .st .ico { width: 16px; height: 16px; }
   .side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
   .side-tv { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 14px; color: var(--accent-ink); background: linear-gradient(135deg, #ffb347, var(--accent)); }
+  .side-tv.simple { background: var(--side-hover); color: #fff; border: 1px solid rgba(255,255,255,.18); }
   .side-src { font-size: 12px; color: var(--side-muted); line-height: 1.4; padding: 0 4px; }
   .content { min-width: 0; display: flex; flex-direction: column; }
   .top { position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; padding: 12px 28px; background: color-mix(in srgb, var(--page) 90%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
@@ -282,6 +283,7 @@
     <div class="side-brand"><span class="logo" id="side-logo"></span><div><b>Monitoring Desa</b><span id="side-desa"></span></div></div>
     <nav class="nav" id="nav" aria-label="Bagian laporan"></nav>
     <div class="side-foot">
+      <a class="side-tv simple" href="ringkas.html" id="side-simple"></a>
       <a class="side-tv" href="tv.html" id="side-tv"></a>
       <p class="side-src" id="side-src"></p>
     </div>

@@ -929,6 +929,7 @@
     document.getElementById('side-logo').classList.add('logo');
     document.getElementById('side-logo').append(UI.icon('shield', 24));
     document.getElementById('side-desa').textContent = D.meta.desa;
+    document.getElementById('side-simple').append(UI.icon('home', 20), el('span', { text: 'Tampilan Ringkas' }));
     document.getElementById('side-tv').append(UI.icon('tv', 20), el('span', { text: 'Tampilan TV' }));
 
     const per = document.getElementById('periode');
