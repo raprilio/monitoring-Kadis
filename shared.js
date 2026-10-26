@@ -123,8 +123,8 @@ window.DashLib = (() => {
     if (D.mobile.pengaduanLebih7Hari) add('warning', `${D.mobile.pengaduanLebih7Hari} pengaduan warga belum ditangani > 7 hari`, `${D.mobile.pengaduanTerbuka} pengaduan masih terbuka`, 'mobile', 'Aplikasi warga');
     // data kependudukan: selalu dihitung dari seluruh warga, tidak mengikuti filter di layar
     const a = W.aggregate(wargaAll());
-    if (a.ktp.belum) add(a.ktp.pct < 75 ? 'critical' : 'warning', `${fmt(a.ktp.belum)} warga wajib KTP-el belum punya`, `Cakupan KTP-el ${pct(a.ktp.pct, 1)} dari ${fmt(a.ktp.wajib)} warga wajib`, 'warga', 'Data warga');
-    if (a.kia.belum) add(a.kia.pct < 75 ? 'critical' : 'warning', `${fmt(a.kia.belum)} anak belum punya KIA`, `Cakupan KIA ${pct(a.kia.pct, 1)} dari ${fmt(a.kia.wajib)} anak wajib`, 'warga', 'Data warga');
+    if (a.ktp.belum) add(a.ktp.pct < 75 ? 'critical' : 'warning', `${fmt(a.ktp.belum)} warga wajib KTP-el belum punya`, `Cakupan ${pct(a.ktp.pct, 1)} dari ${fmt(a.ktp.wajib)} warga wajib`, 'warga', 'Data warga');
+    if (a.kia.belum) add(a.kia.pct < 75 ? 'critical' : 'warning', `${fmt(a.kia.belum)} anak belum punya KIA`, `Cakupan ${pct(a.kia.pct, 1)} dari ${fmt(a.kia.wajib)} anak wajib`, 'warga', 'Data warga');
     if (a.nikGanda) add('critical', `${fmt(a.nikGanda)} NIK ganda di data kependudukan`, 'Periksa dan perbaiki di SIAK', 'warga', 'Data warga');
     const nikBuruk = a.kualitas[0].value < 100 ? Math.round(((100 - a.kualitas[0].value) / 100) * a.n) : 0;
     if (nikBuruk) add('warning', `${fmt(nikBuruk)} NIK tidak valid (bukan 16 digit)`, 'Periksa dan perbaiki di SIAK', 'warga', 'Data warga');
@@ -159,7 +159,7 @@ window.DashLib = (() => {
       { id: 'kiosk', icon: 'kiosk', label: 'Kiosk online', value: `${online}/${nKiosk}`, sub: online < nKiosk ? `${nKiosk - online} kiosk offline` : 'semua kiosk aktif', ring: { value: (online / nKiosk) * 100, text: fmt((online / nKiosk) * 100) + '%', sev: healthSev((online / nKiosk) * 100) } },
       { id: 'aset', icon: 'box', label: 'Aset kondisi baik', value: pct((baik / allAset) * 100, 0), sub: `${fmt(rusak + perb)} perlu tindakan`, ring: { value: (baik / allAset) * 100, text: fmt((baik / allAset) * 100) + '%', sev: healthSev((baik / allAset) * 100) } },
       { id: 'warga', icon: 'users', label: 'Warga tercatat', value: fmt(n), sub: 'KTP-el (cincin)', ring: { value: wa.ktp.pct || 0, text: wa.ktp.pct == null ? '—' : fmt(wa.ktp.pct) + '%', sev: wa.ktp.pct == null ? 'ok' : healthSev(wa.ktp.pct) } },
-      { id: 'server', icon: 'server', label: 'Server sehat', value: `${sehat}/${nodes.length}`, sub: `uptime 30 hari ${pct(D.server.uptime30, 2)}`, ring: { value: (sehat / nodes.length) * 100, text: fmt((sehat / nodes.length) * 100) + '%', sev: healthSev((sehat / nodes.length) * 100) } },
+      { id: 'server', icon: 'server', label: 'Server sehat', value: `${sehat}/${nodes.length}`, sub: `uptime ${pct(D.server.uptime30, 2)}`, ring: { value: (sehat / nodes.length) * 100, text: fmt((sehat / nodes.length) * 100) + '%', sev: healthSev((sehat / nodes.length) * 100) } },
       { id: 'blangko', icon: 'doc', label: 'Blangko terpakai', value: pct((bl.terpakai / bl.total) * 100, 0), sub: `${fmt(bl.rusak)} rusak (${pct((bl.rusak / bl.total) * 100, 1)})`,
         donut: [{ label: 'Terpakai', value: bl.terpakai, color: 'var(--s1)' }, { label: 'Rusak', value: bl.rusak, color: 'var(--crit)' }, { label: 'Sisa', value: bl.sisa, color: 'var(--neutral-seg)' }] },
     ];

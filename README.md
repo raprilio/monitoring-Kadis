@@ -2,7 +2,6 @@
 
 Dashboard monitoring untuk Kepala Desa: satu tempat untuk laporan seluruh aplikasi desa, termasuk data kependudukan dari SIAK.
 
-- `ringkas.html`: **tampilan paling sederhana** untuk Kepala Desa. Bahasa sehari-hari, enam kartu berstatus (Baik / Perlu dicek / Segera ditangani), dan daftar "yang perlu ditindaklanjuti" lengkap dengan saran. Di layar lebar/TV muat satu halaman tanpa scroll; di HP mengalir ke bawah. Parameter: `?theme=dark`, `?days=7|30|90`.
 - `index.html`: tampilan rinci (sidebar navigasi, KPI, peta desa, filter, tabel, isi data warga).
 - `tv.html`: tampilan TV satu layar tanpa scroll ("command center": KPI bercincin, peta desa, peringatan; hanya angka gabungan, tidak pernah nama/NIK).
 - `theme.css` (tema terang/gelap), `ui.js` (cincin, donat, kartu KPI, peta), `shared.js`, `warga.js`, `app.js`, `tv.js`, `data.js`, `config.js`.

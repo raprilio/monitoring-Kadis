@@ -45,8 +45,7 @@
     ]);
   }
   const legend = (items) => el('div', { class: 'legend' }, items.map((i) => el('span', {}, [el('i', { style: 'background:' + i.color }), i.name])));
-  const SEC = [['mobile', '1', 'phone', 'Aplikasi warga'], ['kiosk', '2', 'kiosk', 'Kiosk'], ['aset', '3', 'box', 'Aset'], ['warga', '4', 'users', 'Data kependudukan'], ['server', '5', 'server', 'Server'], ['blangko', '6', 'doc', 'Blangko']];
-
+  
   /** Grafik area satu seri; digambar setelah masuk DOM supaya ukurannya terukur. */
   function areaChart(dates, values, label) {
     const host = el('div', { class: 'chart', role: 'img', 'aria-label': label });
@@ -75,16 +74,6 @@
       host.replaceChildren(svg);
     });
     return host;
-  }
-
-  /* ---------- rel samping ---------- */
-  function renderRail(K) {
-    const rail = document.getElementById('rail');
-    rail.replaceChildren(el('div', { class: 'logo' }, UI.icon('shield', 26)));
-    SEC.forEach(([id, n, ic]) => {
-      const sev = K.sevOf(id);
-      rail.append(el('div', { class: 'r', title: SEC.find((s) => s[0] === id)[3] }, [el('span', { class: 'n', text: n }), UI.icon(ic, 28), statusIcon(sev)]));
-    });
   }
 
   /* ---------- header ---------- */
@@ -118,7 +107,7 @@
       el('div', { class: 't' }, [el('b', { text: label }), c.wajib ? `${fmt(c.belum)} belum punya` : 'tidak ada data']),
     ]);
     const mx = Math.max(...a.usia.map((u) => u.value), 1);
-    const usia = a.usia.map((u) => el('div', { class: 'rowline', style: 'grid-template-columns: 122px 1fr 56px' }, [
+    const usia = a.usia.map((u) => el('div', { class: 'rowline', style: 'grid-template-columns: 146px 1fr 60px' }, [
       el('span', { class: 'n', text: u.label }),
       el('div', { style: 'display:flex' }, el('div', { class: 'hfill', style: `width:${(u.value / mx) * 100}%;background:var(--s1)` })),
       el('span', { class: 'v', text: fmt(u.value) }),
@@ -229,7 +218,7 @@
       ...s.perangkat.map((n) => {
         const sv = n.disk >= 90 ? 'critical' : n.disk >= 75 ? 'warning' : 'ok';
         const fillc = sv === 'critical' ? 'var(--crit)' : sv === 'warning' ? 'var(--warn)' : 'var(--s1)';
-        return el('div', { class: 'rowline', style: 'grid-template-columns: 112px 1fr 84px' }, [
+        return el('div', { class: 'rowline', style: 'grid-template-columns: 132px 1fr 92px' }, [
           el('span', { class: 'n', text: n.nama }),
           el('div', { class: 'meter', style: '--fillc:' + fillc }, el('i', { style: `width:${n.disk}%` })),
           el('span', { class: 'v' }, [sv !== 'ok' ? statusIcon(sv) : null, `Disk ${n.disk}%`]),
@@ -256,7 +245,6 @@
     const alerts = buildAlerts();
     const K = kpis(DAYS, alerts);
     const rows = W.applyFilter(wargaAll(), filter), a = W.aggregate(rows);
-    renderRail(K);
     renderHead(K);
     document.getElementById('kpis').replaceChildren(...K.cards.map((c) => UI.kpiCard(c, { ringSize: 68 })));
     mounts.length = 0;
