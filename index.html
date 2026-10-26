@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Wisata Gateway</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2310d395'/%3E%3Ctext x='16' y='21' font-size='14' font-weight='700' text-anchor='middle' fill='%23062b1f' font-family='monospace'%3EGT%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">GT</div>
+        <div class="brand-text">
+          <h1>
+            <span id="parkTitle">WISATA GATEWAY</span>
+            <span class="pill ok">SYSTEM ACTIVE</span>
+            <span class="pill">6 TURNSTILES</span>
+            <span class="pill warn" id="simPill" hidden title="Ada data demo/simulasi tersimpan. Hapus di Pengaturan.">DATA DEMO</span>
+          </h1>
+          <p id="parkSub"></p>
+        </div>
+      </div>
+
+      <div class="hud" aria-label="Ringkasan okupansi">
+        <div><span>INSIDE ACTIVE</span><b class="c-blue"><span id="hudInside">0</span><small id="hudCap">/300</small></b></div>
+        <div><span>TODAY TOTAL</span><b class="c-green" id="hudToday">0</b></div>
+        <div><span>EXITED</span><b class="c-amber" id="hudExited">0</b></div>
+        <div><span>OCCUPANCY</span><b class="c-green"><span id="hudOcc">0%</span><i class="mini-bars" id="hudBars"></i></b></div>
+      </div>
+
+      <div class="hud-meta">
+        <div><span>SERVER TIME</span><b id="clock">--.--.--</b><small>WIB</small></div>
+        <div><span>SYSTEM STATUS</span><b id="sysStatus" class="sys secure">● SECURE</b></div>
+      </div>
+
+      <button class="icon-btn" id="btnSound" type="button" aria-label="Suara"></button>
+      <button class="panic-btn" id="btnPanic" type="button"></button>
+    </header>
+
+    <nav class="tabs" role="tablist" aria-label="Menu utama">
+      <button role="tab" data-tab="controller" class="tab on" type="button"><i data-ic="lock"></i>TURNSTILES CONTROLLER</button>
+      <button role="tab" data-tab="tv" class="tab" type="button"><i data-ic="tv"></i>TV PUBLIC BILLBOARD</button>
+      <button role="tab" data-tab="analytics" class="tab" type="button"><i data-ic="chart"></i>ANALYTICS &amp; REPORTS</button>
+      <button role="tab" data-tab="guestbook" class="tab" type="button"><i data-ic="users"></i>GUESTBOOK &amp; LOGS</button>
+      <button role="tab" data-tab="group" class="tab" type="button"><i data-ic="spark"></i>GROUP PASS &amp; AI</button>
+      <button role="tab" data-tab="settings" class="tab right" type="button"><i data-ic="gear"></i>SETTINGS</button>
+    </nav>
+
+    <main>
+      <!-- ===================== CONTROLLER ===================== -->
+      <section id="view-controller" class="view on" role="tabpanel">
+        <div class="stats" id="statCards"></div>
+
+        <div class="card console">
+          <div class="console-head">
+            <div class="ic-box amber"><i data-ic="sliders"></i></div>
+            <div>
+              <h2>KONSOL KONTROL MANUAL PETUGAS (PER-GATE OVERRIDE) <span class="pill amber">OFFICER ACCESS</span></h2>
+              <p>Buka atau kunci turnstile per-gate secara manual untuk tiket fisik, rombongan, lansia, atau uji coba.</p>
+            </div>
+            <button class="btn danger-outline" id="btnPanic2" type="button"><i data-ic="alert"></i><span id="panic2Label">PANIC GATE (BUKA SEMUA)</span></button>
+          </div>
+          <div class="console-row">
+            <label class="fld"><span>PILIH GATE TARGET</span><select id="selGate"></select></label>
+            <label class="fld"><span>ALASAN PEMBUKAAN MANUAL</span><select id="selReason"></select></label>
+            <label class="fld"><span>DURASI TERBUKA</span>
+              <select id="selDur">
+                <option value="5">5 Detik (Auto-Close)</option>
+                <option value="10">10 Detik (Auto-Close)</option>
+                <option value="30">30 Detik (Auto-Close)</option>
+                <option value="0">Tahan sampai dikunci</option>
+              </select>
+            </label>
+            <button class="btn grad" id="btnOpen" type="button"><i data-ic="unlock"></i>BUKA GATE</button>
+            <button class="btn ghost" id="btnLock" type="button"><i data-ic="lock"></i>KUNCI</button>
+          </div>
+        </div>
+
+        <div class="wings">
+          <div class="card wing in">
+            <div class="wing-head"><span class="tag in">IN</span><div><h3>ENTRY WING TURNSTILES</h3><p>3 Jalur Masuk Pengunjung &amp; Verifikasi KTP</p></div><span class="pill ok" id="entryActive">ENTRY ACTIVE</span></div>
+            <div class="gates" id="wingIn"></div>
+          </div>
+          <div class="card wing out">
+            <div class="wing-head"><span class="tag out">OUT</span><div><h3>EXIT WING TURNSTILES</h3><p>3 Jalur Keluar Pengunjung &amp; Selesai Kunjungan</p></div><span class="pill blue" id="exitActive">EXIT ACTIVE</span></div>
+            <div class="gates" id="wingOut"></div>
+          </div>
+        </div>
+
+        <div class="lower">
+          <div class="card">
+            <div class="card-head">
+              <h3 class="green"><i data-ic="zap"></i>SIMULASI TEMPEL E-KTP CEPAT (PRESET KARTU PENGUNJUNG):</h3>
+              <div class="head-actions">
+                <button class="btn mini ghost" id="btnAuto" type="button" aria-pressed="false">AUTO TRAFFIC: OFF</button>
+                <span class="hint" id="tapHint">Click to Tap</span>
+              </div>
+            </div>
+            <div class="presets" id="presets"></div>
+
+            <form class="ktp-form" id="ktpForm" autocomplete="off">
+              <div class="card-head">
+                <h4>MANUAL E-KTP FORM / OCR SCANNER</h4>
+                <div class="head-actions">
+                  <button class="btn mini ghost" id="btnFill" type="button">Auto Fill Data</button>
+                  <button class="btn mini ghost" type="button" disabled title="Belum tersedia: OCR butuh kamera + engine pengenal teks."><i data-ic="camera"></i>Camera OCR</button>
+                </div>
+              </div>
+              <div class="form-grid">
+                <label class="fld span2"><span>NIK KTP (16 DIGIT) *</span><input id="fNik" inputmode="numeric" maxlength="19" placeholder="357801..." required><em class="nik-hint" id="nikHint"></em></label>
+                <label class="fld span2"><span>NAMA PENGUNJUNG</span><input id="fName" maxlength="80" placeholder="Sesuai e-KTP"></label>
+                <label class="fld"><span>KOTA ASAL</span><input id="fCity" maxlength="60" placeholder="Jakarta Pusat"></label>
+                <label class="fld"><span>PROVINSI</span><input id="fProv" maxlength="60" placeholder="DKI Jakarta"></label>
+                <label class="fld"><span>KATEGORI</span><select id="fCat"></select></label>
+              </div>
+              <div class="form-foot"><button class="btn primary" type="submit"><i data-ic="card"></i>TAP KE GATE TARGET</button></div>
+            </form>
+          </div>
+
+          <div class="card terminal-card">
+            <div class="card-head"><h3><span class="live-dot"></span>REAL-TIME LOGS TERMINAL</h3><span class="hint">LIVE FEED</span></div>
+            <div class="terminal" id="terminal" role="log" aria-live="polite"></div>
+            <div class="terminal-foot"><span>Audit Protocol Active</span><b>100% Logs Captured</b></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== TV ===================== -->
+      <section id="view-tv" class="view" role="tabpanel">
+        <div class="tv" id="tvBoard">
+          <button class="btn mini ghost tv-fs" id="btnFs" type="button"><i data-ic="full"></i>LAYAR PENUH</button>
+          <div class="tv-top">
+            <div><div class="tv-park" id="tvPark"></div><div class="tv-date" id="tvDate"></div></div>
+            <div class="tv-clock" id="tvClock">--.--</div>
+          </div>
+          <div class="tv-mid">
+            <div class="tv-gauge">
+              <svg viewBox="0 0 200 200" aria-hidden="true"><circle cx="100" cy="100" r="86" class="g-bg"/><circle cx="100" cy="100" r="86" class="g-fg" id="tvRing" transform="rotate(-90 100 100)"/></svg>
+              <div class="g-center"><b id="tvPct">0%</b><span>TERISI</span></div>
+            </div>
+            <div class="tv-info">
+              <div class="tv-status" id="tvStatus">TERSEDIA</div>
+              <div class="tv-nums">
+                <div><b id="tvInside">0</b><span>Pengunjung di dalam</span></div>
+                <div><b id="tvFree">0</b><span>Sisa kuota</span></div>
+                <div><b id="tvToday">0</b><span>Total hari ini</span></div>
+              </div>
+              <div class="tv-quote" id="tvQuote"></div>
+            </div>
+            <div class="tv-feed">
+              <h4>SELAMAT DATANG</h4>
+              <ul id="tvFeed"></ul>
+            </div>
+          </div>
+          <div class="tv-ticker"><div class="tv-ticker-in" id="tvTicker"></div></div>
+        </div>
+      </section>
+
+      <!-- ===================== ANALYTICS ===================== -->
+      <section id="view-analytics" class="view" role="tabpanel">
+        <div class="bar-actions">
+          <label class="fld inline"><span>TANGGAL</span><select id="anDay"></select></label>
+          <div class="spacer"></div>
+          <button class="btn ghost" id="btnAnCsv" type="button"><i data-ic="download"></i>EKSPOR CSV</button>
+          <button class="btn ghost" id="btnPrint" type="button"><i data-ic="print"></i>CETAK</button>
+        </div>
+        <div id="anBody"></div>
+      </section>
+
+      <!-- ===================== GUESTBOOK ===================== -->
+      <section id="view-guestbook" class="view" role="tabpanel">
+        <div class="gb-grid">
+          <div class="card">
+            <div class="card-head"><h3>LOG KUNJUNGAN</h3><button class="btn mini ghost" id="btnLogCsv" type="button"><i data-ic="download"></i>CSV</button></div>
+            <div class="filters">
+              <input id="lgQ" type="search" placeholder="Cari nama / kota / 4 digit akhir NIK…" aria-label="Cari log">
+              <select id="lgDir" aria-label="Arah"><option value="">Semua arah</option><option value="IN">Masuk</option><option value="OUT">Keluar</option></select>
+              <select id="lgRes" aria-label="Hasil"><option value="">Semua hasil</option><option value="OK">Diizinkan</option><option value="DENIED">Ditolak</option><option value="MANUAL">Manual</option></select>
+              <select id="lgGate" aria-label="Gate"><option value="">Semua gate</option></select>
+            </div>
+            <div class="table-wrap"><table class="tbl" id="lgTable"></table></div>
+            <div class="tbl-foot"><span id="lgCount"></span><button class="btn mini ghost" id="lgMore" type="button">Muat lebih banyak</button></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>BUKU TAMU DIGITAL</h3></div>
+            <form id="gbForm" class="gb-form" autocomplete="off">
+              <input id="gbName" maxlength="60" placeholder="Nama (opsional)" aria-label="Nama">
+              <textarea id="gbText" maxlength="400" rows="3" placeholder="Tulis kesan & pesan Anda…" required aria-label="Pesan"></textarea>
+              <div class="gb-row">
+                <div class="stars" id="gbStars" role="radiogroup" aria-label="Penilaian"></div>
+                <button class="btn primary" type="submit">KIRIM</button>
+              </div>
+            </form>
+            <div class="gb-list" id="gbList"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== GROUP + INSIGHTS ===================== -->
+      <section id="view-group" class="view" role="tabpanel">
+        <div class="gp-grid">
+          <div>
+            <div class="card">
+              <div class="card-head"><h3>DAFTAR GROUP PASS</h3><span class="hint">1 tap = seluruh rombongan</span></div>
+              <form id="gpForm" class="form-grid" autocomplete="off">
+                <label class="fld span2"><span>NAMA ROMBONGAN *</span><input id="gpName" maxlength="80" required placeholder="SMPN 2 Bandung"></label>
+                <label class="fld span2"><span>PENANGGUNG JAWAB</span><input id="gpLeader" maxlength="80" placeholder="Nama ketua rombongan"></label>
+                <label class="fld"><span>JUMLAH ORANG *</span><input id="gpSize" type="number" min="2" max="500" value="20" required></label>
+                <label class="fld"><span>KOTA ASAL</span><input id="gpCity" maxlength="60" placeholder="Bandung"></label>
+                <label class="fld"><span>KATEGORI</span><select id="gpCat"></select></label>
+                <div class="fld form-foot"><button class="btn primary" type="submit">DAFTARKAN</button></div>
+              </form>
+            </div>
+            <div class="card">
+              <div class="card-head"><h3>ROMBONGAN HARI INI</h3><span class="hint" id="gpHint"></span></div>
+              <div id="gpList"></div>
+            </div>
+          </div>
+          <div class="card insights">
+            <div class="card-head"><h3 class="purple"><i data-ic="spark"></i>SMART INSIGHTS</h3><span class="pill">RULE-BASED • LOKAL</span></div>
+            <p class="note">Analisis otomatis dari data akses hari ini. Ini mesin aturan sederhana yang berjalan di browser — bukan model AI/LLM dan tidak mengirim data ke mana pun.</p>
+            <div id="insights"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== SETTINGS ===================== -->
+      <section id="view-settings" class="view" role="tabpanel">
+        <div class="set-grid">
+          <div class="card">
+            <div class="card-head"><h3>UMUM &amp; KEAMANAN</h3></div>
+            <div class="form-grid">
+              <label class="fld span4"><span>NAMA SISTEM</span><input id="sName" maxlength="60"></label>
+              <label class="fld span4"><span>SUBJUDUL / LOKASI</span><input id="sSub" maxlength="160"></label>
+              <label class="fld span2"><span>KAPASITAS MAKSIMUM (ORANG)</span><input id="sCap" type="number" min="1" max="100000"></label>
+              <label class="fld span2"><span>RE-LOCK DELAY (DETIK)</span><input id="sRelock" type="number" min="1" max="30"></label>
+              <label class="check span2"><input id="sAp" type="checkbox"><span>Anti-Passback (1 KTP = 1 masuk &amp; 1 keluar)</span></label>
+              <label class="check span2"><input id="sSound" type="checkbox"><span>Suara notifikasi gate</span></label>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>NAMA GATE</h3></div>
+            <div class="form-grid" id="sGates"></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>HARGA TIKET (UNTUK ESTIMASI PENDAPATAN)</h3></div>
+            <div class="form-grid" id="sPrices"></div>
+            <p class="note">Angka bawaan hanyalah contoh. Isi sesuai tarif resmi Anda.</p>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>PENGUMUMAN TV (1 BARIS = 1 PESAN)</h3></div>
+            <textarea id="sAnn" rows="6" class="area"></textarea>
+          </div>
+          <div class="card span-all">
+            <div class="card-head"><h3>DATA &amp; PEMELIHARAAN</h3></div>
+            <div class="btn-row">
+              <button class="btn ghost" id="btnDemo" type="button">Isi Data Demo</button>
+              <button class="btn ghost" id="btnClearSim" type="button">Hapus Data Demo/Simulasi</button>
+              <button class="btn ghost" id="btnBackup" type="button"><i data-ic="download"></i>Backup JSON</button>
+              <label class="btn ghost file-btn">Restore JSON<input id="fileRestore" type="file" accept="application/json,.json" hidden></label>
+              <button class="btn danger-outline" id="btnResetToday" type="button">Reset Hari Ini</button>
+              <button class="btn danger-outline" id="btnFactory" type="button">Reset Total</button>
+            </div>
+            <p class="note"><b>Mode simulator.</b> Aplikasi ini memodelkan turnstile di layar — belum terhubung ke perangkat keras. Data disimpan di browser perangkat ini (localStorage), maksimal 8.000 catatan akses terakhir. NIK adalah data pribadi: tampilan dan CSV selalu menyamarkan NIK, tetapi file Backup JSON berisi NIK lengkap — simpan dengan aman.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toasts" aria-live="assertive"></div>
+  <dialog id="dlg">
+    <form method="dialog">
+      <h3 id="dlgTitle"></h3>
+      <p id="dlgBody"></p>
+      <div class="btn-row end"><button class="btn ghost" value="cancel">Batal</button><button class="btn primary" value="ok" id="dlgOk">Ya</button></div>
+    </form>
+  </dialog>
+
+  <script src="js/core.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/tabs.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
