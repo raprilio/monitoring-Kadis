@@ -10,7 +10,7 @@ Dashboard monitoring untuk Kepala Desa: satu tempat untuk laporan seluruh aplika
 
 Gaya visual mengikuti referensi: sidebar gelap dengan menu bergambar, baris kartu KPI dengan cincin/donat, peta di tengah dengan titik berstatus, dan panel peringatan. Tema terang dan gelap (tombol di kanan atas; TV bawaan gelap). Warna data sudah divalidasi untuk keterbacaan di latar gelap dan terang, dan status selalu memakai ikon + label, tidak hanya warna.
 
-**Peta desa memakai peta nyata (OpenStreetMap + Leaflet, disertakan di `vendor/leaflet/`).** Tersedia kontrol **Wilayah** (seluruh desa atau satu dusun) dan tombol **Kunci**: saat terkunci, tampilan dibekukan pada wilayah terpilih (tanpa geser/zoom); tanpa kunci, peta bebas digeser tetapi tidak bisa keluar dari batas desa. Pilihan tersimpan di URL (`?wilayah=krajan&kunci=1`); di `tv.html` peta terkunci bawaan (`?wilayah=krajan`, `?kunci=0` untuk melepas). Titik berwarna menurut status (kiosk, aset bermasalah, balai/server), angka di dusun = jumlah warga dari data SIAK.
+**Peta desa memakai peta nyata (OpenStreetMap + Leaflet, disertakan di `lib/leaflet/`).** Tersedia kontrol **Wilayah** (seluruh desa atau satu dusun) dan tombol **Kunci**: saat terkunci, tampilan dibekukan pada wilayah terpilih (tanpa geser/zoom); tanpa kunci, peta bebas digeser tetapi tidak bisa keluar dari batas desa. Pilihan tersimpan di URL (`?wilayah=krajan&kunci=1`); di `tv.html` peta terkunci bawaan (`?wilayah=krajan`, `?kunci=0` untuk melepas). Titik berwarna menurut status (kiosk, aset bermasalah, balai/server), angka di dusun = jumlah warga dari data SIAK.
 
 **Koordinat di `data.js` hanyalah contoh** (sebuah kawasan nyata yang dipilih sembarang, ditandai "lokasi contoh" di layar); batas dusun dan letak titiknya juga contoh. Untuk wilayah desa Anda: isi `peta.geo.batas` (sudut barat daya dan timur laut, `[lintang, bujur]`), `peta.geo.dusunGeojson` (batas dusun asli, FeatureCollection dengan `properties.nama` sama seperti nama dusun di data), dan `lat`/`lng` pada tiap titik di `peta.titik`. Bila peta dasar tidak bisa dimuat (tanpa internet), tampilan otomatis memakai peta skematik sebagai cadangan.
 Catatan: peta dasar diambil dari server OpenStreetMap (`peta.geo.tiles.url`). Kebijakan penggunaan OSM membatasi pemakaian berat; untuk TV yang menyala terus, pakai penyedia peta/server tile sendiri dengan mengganti alamat itu, dan tetap cantumkan atribusinya.
@@ -65,6 +65,16 @@ Buka `tv.html`. Semua 6 laporan, angka utama, jam, dan peringatan muat dalam sat
 
 Parameter URL (opsional): `?days=7|30|90`, `?theme=light|dark` (bawaan gelap), `?refresh=<menit>`, `?page=<detik>`, dan filter data warga (hanya panel 4): `?status=janda`, `?usia=17-24`, `?pend=sd,sma`, `?kartu=ktp-belum`. Tombol **Filter warga** di pojok kiri atas (atau panah kiri/kanan di keyboard/remote) mengganti status perkawinan.
 Pasang di TV: buka di browser layar penuh (F11), mis. `chrome --kiosk tv.html`.
+
+## Pasang di shared hosting
+
+Halaman ini 100% statis (HTML + JS + CSS), tidak perlu PHP atau database.
+1. Ekstrak zip di komputer, lalu unggah **seluruh isinya** (13 berkas + folder `lib/`) ke folder situs, misalnya `public_html/`. Jangan hanya mengunggah `index.html`.
+2. Berkas harus berada di folder yang sama dengan `index.html`, dengan nama persis (huruf kecil). Jangan ada folder tambahan di antaranya (mis. `public_html/monitoring-kadis/monitoring-kadis/`).
+3. Buka alamatnya, mis. `https://situsanda.id/` atau `https://situsanda.id/tv.html`. Bila hosting menampilkan halaman bawaan ("Coming soon", `default.html`, `index.php`), hapus berkas bawaan itu atau buka `index.html` secara eksplisit.
+4. Peta dasar diambil langsung dari browser pengunjung ke `tile.openstreetmap.org`, jadi perangkat yang menampilkan harus punya internet. Bila tidak bisa, otomatis tampil peta skematik.
+5. Bila ada berkas yang gagal dimuat, halaman menampilkan kotak kuning berisi nama berkas yang hilang. Itu petunjuk pertama saat "tidak muncul".
+6. Data warga (NIK, nama) **jangan** diunggah ke hosting publik tanpa login; lihat bagian Privasi. Halaman statis ini tidak punya autentikasi.
 
 ## Menjalankan
 

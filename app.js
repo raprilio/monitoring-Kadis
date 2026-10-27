@@ -832,7 +832,7 @@
   /* ============================== ringkasan & peringatan ============================== */
   // satu peta dipakai terus (tidak dibuat ulang tiap render); wilayah & kunci disimpan di URL
   const mapParams = new URLSearchParams(location.search);
-  const mapApi = window.DashMap.create({
+  const mapApi = !window.DashMap ? { el: el('div', { class: 'gm-note', style: 'position:static', text: 'Peta tidak bisa dimuat: berkas map.js atau folder lib/ belum terunggah.' }), state: { wilayah: 'desa', kunci: false }, update() {}, setActive() {}, restyle() {}, attach() {} } : window.DashMap.create({
     controls: true, wilayah: mapParams.get('wilayah') || 'desa', kunci: mapParams.get('kunci') === '1',
     onHover: (p, e) => tip.show(e.clientX, e.clientY, p.nama, [{ value: SEV_LABEL[p.sev], name: `${p.tipe} · ${p.detail}` }]), onLeave: () => tip.hide(),
     onChange: ({ wilayah, kunci }) => {

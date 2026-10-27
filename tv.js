@@ -122,7 +122,7 @@
 
   /* ---------- peta (nyata, terkunci pada wilayah) ---------- */
   // Satu peta dipakai terus; tiap render hanya data/penanda yang diperbarui. Bawaan TV: terkunci ke wilayah dari ?wilayah= (bawaan: seluruh desa).
-  const mapApi = window.DashMap.create({ controls: false, wilayah: q.get('wilayah') || 'desa', kunci: q.get('kunci') !== '0', slice: true });
+  const mapApi = !window.DashMap ? { el: el('div', { class: 'gm-note', style: 'position:static', text: 'Peta tidak bisa dimuat: berkas map.js atau folder lib/ belum terunggah.' }), state: { wilayah: 'desa', kunci: false }, update() {}, setActive() {}, restyle() {}, attach() {} } : window.DashMap.create({ controls: false, wilayah: q.get('wilayah') || 'desa', kunci: q.get('kunci') !== '0', slice: true });
   let mapTimer = null, alertTimer = null;
   function renderMap(rows) {
     const points = petaTitik();

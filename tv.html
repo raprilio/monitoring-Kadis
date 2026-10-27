@@ -4,7 +4,31 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard Kepala Desa (Tampilan TV)</title>
-<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<script>
+/* Pemeriksa pemasangan: bila ada berkas yang gagal dimuat (mis. belum terunggah ke hosting), tampilkan pesan yang jelas, bukan layar kosong. */
+(function () {
+  var miss = [], errs = [];
+  addEventListener('error', function (e) {
+    var t = e.target;
+    if (t && t !== window && (t.getAttribute && (t.getAttribute('src') || t.getAttribute('href')))) miss.push(t.getAttribute('src') || t.getAttribute('href'));
+    else if (e.message && !/ResizeObserver/.test(e.message)) errs.push(e.message);
+  }, true);
+  addEventListener('load', function () {
+    setTimeout(function () {
+      var need = !window.DashLib || !window.DashUI || !window.DASHBOARD_DATA || !window.WargaLib;
+      if (!need && !miss.length && !errs.length) return;
+      var b = document.createElement('div');
+      b.setAttribute('role', 'alert');
+      b.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;padding:12px 16px;border-radius:12px;background:#fff3cd;color:#3b2f00;border:2px solid #fab219;font:15px/1.4 system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.3)';
+      b.textContent = (miss.length ? 'Berkas gagal dimuat: ' + miss.join(', ') + '. ' : '') + (errs.length ? 'Galat skrip: ' + errs[0] + '. ' : '') +
+        'Pastikan SELURUH isi zip (termasuk folder lib/) diunggah ke folder yang sama dengan halaman ini, dan nama berkas persis sama (huruf kecil).';
+      document.body.appendChild(b);
+    }, 400);
+  });
+})();
+</script>
+<link rel="stylesheet" href="lib/leaflet/leaflet.css">
 <link rel="stylesheet" href="theme.css">
 <style>
   * { box-sizing: border-box; }
@@ -137,7 +161,7 @@
 <script src="data.js"></script>
 <script src="warga.js"></script>
 <script src="shared.js"></script>
-<script src="vendor/leaflet/leaflet.js"></script>
+<script src="lib/leaflet/leaflet.js"></script>
 <script src="ui.js"></script>
 <script src="map.js"></script>
 <script src="tv.js"></script>

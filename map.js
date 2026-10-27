@@ -60,13 +60,14 @@ window.DashMap = (() => {
       zoomCtl = L.control.zoom({ position: 'topright', zoomInText: '+', zoomOutText: '−' });
 
       let loaded = 0, errors = 0;
-      tiles = L.tileLayer(g.tiles.url, { attribution: g.tiles.attribution, maxZoom: g.tiles.maxZoom || 19, minZoom: 1 }).addTo(map);
+      tiles = L.tileLayer(g.tiles.url, { referrerPolicy: 'origin', attribution: g.tiles.attribution, maxZoom: g.tiles.maxZoom || 19, minZoom: 1 }).addTo(map);
       tiles.on('tileload', () => { loaded++; clearTimeout(waitTimer); });
       tiles.on('tileerror', () => { errors++; if (!loaded && errors >= 4) fallback('Peta dasar tidak bisa dimuat (periksa koneksi internet).'); });
       waitTimer = setTimeout(() => { if (!loaded) fallback('Peta dasar tidak bisa dimuat (periksa koneksi internet).'); }, opts.tileWaitMs || 9000);
 
       if (opts.controls) addControls();
-      ro = new ResizeObserver(() => { if (map) { map.invalidateSize(); applyView(false); } });
+      let raf = 0;
+      ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { if (map) { map.invalidateSize(); applyView(false); } }); });
       ro.observe(host);
     }
 
