@@ -190,6 +190,38 @@ window.DashLib = (() => {
     });
     return out;
   }
+
+  /* ---------- peta nyata: koordinat, wilayah, batas ---------- */
+  /** Poligon/titik/wilayah dalam [lintang, bujur]. Memakai GeoJSON dusun bila ada, bila tidak: konversi dari gambar skematik. */
+  function petaGeo() {
+    const P = D.peta, g = P.geo, [sw, ne] = g.batas;
+    const toLL = ([x, y]) => [ne[0] - (y / P.tinggi) * (ne[0] - sw[0]), sw[1] + (x / P.lebar) * (ne[1] - sw[1])];
+    const ring = (c) => c.map(([lng, lat]) => [lat, lng]);
+    const fromGj = new Map();
+    if (g.dusunGeojson && Array.isArray(g.dusunGeojson.features)) {
+      g.dusunGeojson.features.forEach((f) => {
+        const nm = f.properties && f.properties.nama, geom = f.geometry;
+        if (!nm || !geom) return;
+        const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.type === 'MultiPolygon' ? geom.coordinates : [];
+        fromGj.set(nm, polys.map((p) => ring(p[0])));
+      });
+    }
+    const bbox = (pts) => {
+      const la = pts.map((p) => p[0]), lo = pts.map((p) => p[1]);
+      const pa = (Math.max(...la) - Math.min(...la)) * 0.08, po = (Math.max(...lo) - Math.min(...lo)) * 0.08;
+      return [[Math.min(...la) - pa, Math.min(...lo) - po], [Math.max(...la) + pa, Math.max(...lo) + po]];
+    };
+    const dusun = P.dusun.map((d) => {
+      const polys = fromGj.get(d.nama) || [d.poligon.map(toLL)];
+      const flat = polys.flat();
+      const label = fromGj.has(d.nama) ? [sum(flat.map((p) => p[0])) / flat.length, sum(flat.map((p) => p[1])) / flat.length] : toLL(d.label);
+      return { nama: d.nama, key: d.nama.replace(/^Dusun\s+/i, '').toLowerCase().replace(/\W+/g, '-'), poligon: polys, label, bounds: bbox(flat) };
+    });
+    const desaBounds = [[sw[0], sw[1]], [ne[0], ne[1]]];
+    const titik = petaTitik().map((p) => ({ ...p, ll: p.lat != null && p.lng != null ? [p.lat, p.lng] : toLL([p.x, p.y]) }));
+    const wilayah = [{ key: 'desa', label: 'Seluruh desa', bounds: desaBounds }, ...dusun.map((d) => ({ key: d.key, label: d.nama, bounds: d.bounds }))];
+    return { geo: g, dusun, titik, wilayah, desaBounds };
+  }
   const petaCounts = (rows) => {
     const m = new Map();
     rows.forEach((r) => m.set(r.dusun, (m.get(r.dusun) || 0) + 1));
@@ -199,6 +231,6 @@ window.DashLib = (() => {
   return {
     D, nf, nfd, fmt, fmt1, pct, compact, rupiah, sum, avg, clamp, slice, changePct, dShort, dLong,
     el, SEV_LABEL, statusIcon, pill, blangkoStats, buildAlerts,
-    W, wargaAll, ready, reload: loadWarga, periodOf, kpis, petaTitik, petaCounts,
+    W, wargaAll, ready, reload: loadWarga, periodOf, kpis, petaTitik, petaCounts, petaGeo,
   };
 })();

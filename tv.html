@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard Kepala Desa (Tampilan TV)</title>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="theme.css">
 <style>
   * { box-sizing: border-box; }
@@ -92,12 +93,13 @@
   /* peta */
   .panel.map { padding: 0; position: relative; background: var(--surface2); }
   .map-svg { position: absolute; inset: 0; }
-  .map-title { position: absolute; left: 16px; top: 14px; display: flex; align-items: center; gap: 10px; padding: 6px 14px; border-radius: 12px; background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1px solid var(--border); font-weight: 700; font-size: 20px; }
+  .map-demo { margin-left: 10px; padding: 0 12px; border-radius: 999px; font-size: 16px; font-weight: 600; background: color-mix(in srgb, var(--warn) 30%, var(--surface)); }
+  .map-title { z-index: 5; position: absolute; left: 16px; top: 14px; display: flex; align-items: center; gap: 10px; padding: 6px 14px; border-radius: 12px; background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1px solid var(--border); font-weight: 700; font-size: 20px; }
   .map-title .sub { font-weight: 400; }
-  .map-leg { position: absolute; left: 16px; bottom: 14px; max-width: 470px; padding: 8px 14px; border-radius: 12px; background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1px solid var(--border); }
+  .map-leg { z-index: 5; position: absolute; left: 16px; bottom: 14px; max-width: 470px; padding: 8px 14px; border-radius: 12px; background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1px solid var(--border); }
   .map-leg .map-legend { font-size: 17px; gap: 4px 18px; }
   .map-leg .map-legend svg { width: 18px; height: 18px; }
-  .map-info { position: absolute; right: 16px; bottom: 14px; width: 300px; padding: 12px 16px; border-radius: 14px; background: color-mix(in srgb, var(--surface) 92%, transparent); border: 1px solid var(--border); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 4px; }
+  .map-info { z-index: 5; position: absolute; right: 16px; bottom: 14px; width: 300px; padding: 12px 16px; border-radius: 14px; background: color-mix(in srgb, var(--surface) 92%, transparent); border: 1px solid var(--border); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 4px; }
   .map-info .t { font-size: 20px; font-weight: 700; line-height: 1.2; }
   .map-info .tp { font-size: 16px; color: var(--ink2); }
   .map-info .d { font-size: 18px; }
@@ -135,7 +137,9 @@
 <script src="data.js"></script>
 <script src="warga.js"></script>
 <script src="shared.js"></script>
+<script src="vendor/leaflet/leaflet.js"></script>
 <script src="ui.js"></script>
+<script src="map.js"></script>
 <script src="tv.js"></script>
 </body>
 </html>

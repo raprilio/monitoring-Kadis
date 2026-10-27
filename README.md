@@ -10,7 +10,10 @@ Dashboard monitoring untuk Kepala Desa: satu tempat untuk laporan seluruh aplika
 
 Gaya visual mengikuti referensi: sidebar gelap dengan menu bergambar, baris kartu KPI dengan cincin/donat, peta di tengah dengan titik berstatus, dan panel peringatan. Tema terang dan gelap (tombol di kanan atas; TV bawaan gelap). Warna data sudah divalidasi untuk keterbacaan di latar gelap dan terang, dan status selalu memakai ikon + label, tidak hanya warna.
 
-**Peta desa itu skematik, bukan peta sungguhan.** Bentuk dusun dan posisi titik (kiosk, aset bermasalah, balai desa) adalah gambar sederhana dari `peta` di `data.js`. Angka di tiap dusun adalah jumlah warga dari data SIAK; status titik diambil dari data kiosk, aset, dan server. Untuk peta nyata dibutuhkan koordinat lintang/bujur tiap titik dan batas dusun (mis. GeoJSON), lalu peta dasar seperti OpenStreetMap; itu belum ada.
+**Peta desa memakai peta nyata (OpenStreetMap + Leaflet, disertakan di `vendor/leaflet/`).** Tersedia kontrol **Wilayah** (seluruh desa atau satu dusun) dan tombol **Kunci**: saat terkunci, tampilan dibekukan pada wilayah terpilih (tanpa geser/zoom); tanpa kunci, peta bebas digeser tetapi tidak bisa keluar dari batas desa. Pilihan tersimpan di URL (`?wilayah=krajan&kunci=1`); di `tv.html` peta terkunci bawaan (`?wilayah=krajan`, `?kunci=0` untuk melepas). Titik berwarna menurut status (kiosk, aset bermasalah, balai/server), angka di dusun = jumlah warga dari data SIAK.
+
+**Koordinat di `data.js` hanyalah contoh** (sebuah kawasan nyata yang dipilih sembarang, ditandai "lokasi contoh" di layar); batas dusun dan letak titiknya juga contoh. Untuk wilayah desa Anda: isi `peta.geo.batas` (sudut barat daya dan timur laut, `[lintang, bujur]`), `peta.geo.dusunGeojson` (batas dusun asli, FeatureCollection dengan `properties.nama` sama seperti nama dusun di data), dan `lat`/`lng` pada tiap titik di `peta.titik`. Bila peta dasar tidak bisa dimuat (tanpa internet), tampilan otomatis memakai peta skematik sebagai cadangan.
+Catatan: peta dasar diambil dari server OpenStreetMap (`peta.geo.tiles.url`). Kebijakan penggunaan OSM membatasi pemakaian berat; untuk TV yang menyala terus, pakai penyedia peta/server tile sendiri dengan mengganti alamat itu, dan tetap cantumkan atribusinya.
 
 ## Isi dashboard
 

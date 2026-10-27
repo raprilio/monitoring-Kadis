@@ -176,6 +176,17 @@
     // Pada penerapan nyata, ganti dengan koordinat lintang/bujur dan peta dasar asli (mis. Leaflet + OpenStreetMap).
     // `ref` menghubungkan titik ke data: nama kiosk, nama aset (aset.perluPerhatian), atau 'server' untuk Balai Desa.
     peta: {
+      lebar: 160, tinggi: 105,
+      // Peta nyata (OpenStreetMap). KOORDINAT DI BAWAH ADALAH CONTOH, bukan lokasi desa Anda: ganti `batas` (sudut barat daya & timur laut
+      // area desa, [lintang, bujur]) dan, bila ada, `dusunGeojson` (batas dusun nyata, FeatureCollection dengan properties.nama).
+      // Titik tanpa `lat`/`lng` ditempatkan dari koordinat skematik x,y di dalam `batas`; isi `lat`/`lng` untuk posisi sebenarnya.
+      geo: {
+        contoh: true,
+        batas: [[-7.3695, 109.8855], [-7.3505, 109.9145]],
+        minZoom: 13, maxZoom: 18,
+        tiles: { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 19 },
+        dusunGeojson: null,
+      },
       dusun: [
         { nama: 'Dusun Krajan', poligon: [[8, 22], [62, 13], [74, 42], [66, 74], [20, 78], [6, 50]], label: [36, 47] },
         { nama: 'Dusun Sumber', poligon: [[62, 13], [112, 8], [120, 38], [100, 55], [74, 42]], label: [94, 30] },

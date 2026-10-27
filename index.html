@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard Kepala Desa</title>
 <meta name="description" content="Ringkasan laporan seluruh aplikasi desa: aplikasi warga, kiosk, inventaris aset, data warga, server, dan blangko.">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="theme.css">
 <style>
   * { box-sizing: border-box; }
@@ -164,6 +165,7 @@
   .mapcard { display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px; }
   .mapframe { aspect-ratio: 160 / 105; border-radius: 12px; overflow: hidden; background: var(--surface2); border: 1px solid var(--border); }
   .mapcard .note { font-size: 12px; color: var(--muted); }
+  .mapcard .note.warn { color: var(--ink); background: color-mix(in srgb, var(--warn) 22%, var(--surface)); border-radius: 8px; padding: 4px 10px; }
   .alerts { display: flex; flex-direction: column; min-height: 0; }
   .alerts h2 { font-size: 16px; font-weight: 600; }
   .alerts .alerts-sub { font-size: 13px; color: var(--ink2); margin: 2px 0 10px; }
@@ -308,7 +310,9 @@
 <script src="data.js"></script>
 <script src="warga.js"></script>
 <script src="shared.js"></script>
+<script src="vendor/leaflet/leaflet.js"></script>
 <script src="ui.js"></script>
+<script src="map.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

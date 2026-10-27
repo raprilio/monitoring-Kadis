@@ -5,7 +5,7 @@
   const {
     nfd, fmt, fmt1, pct, compact, rupiah, sum, avg, clamp, slice, changePct, dShort, dLong,
     el, SEV_LABEL, statusIcon, pill, blangkoStats, buildAlerts,
-    W, wargaAll, ready, kpis, petaTitik, petaCounts,
+    W, wargaAll, ready, kpis, petaTitik, petaCounts, petaGeo,
   } = window.DashLib;
   const UI = window.DashUI;
 
@@ -830,6 +830,21 @@
   }
 
   /* ============================== ringkasan & peringatan ============================== */
+  // satu peta dipakai terus (tidak dibuat ulang tiap render); wilayah & kunci disimpan di URL
+  const mapParams = new URLSearchParams(location.search);
+  const mapApi = window.DashMap.create({
+    controls: true, wilayah: mapParams.get('wilayah') || 'desa', kunci: mapParams.get('kunci') === '1',
+    onHover: (p, e) => tip.show(e.clientX, e.clientY, p.nama, [{ value: SEV_LABEL[p.sev], name: `${p.tipe} · ${p.detail}` }]), onLeave: () => tip.hide(),
+    onChange: ({ wilayah, kunci }) => {
+      try {
+        const u = new URL(location.href);
+        if (wilayah === 'desa') u.searchParams.delete('wilayah'); else u.searchParams.set('wilayah', wilayah);
+        if (kunci) u.searchParams.set('kunci', '1'); else u.searchParams.delete('kunci');
+        history.replaceState(null, '', u);
+      } catch (e) { /* abaikan */ }
+    },
+  });
+
   function overview(alerts, K) {
     const h = K.hero, chg = h.chg;
     const dailySel = periodStats(D.mobile.selesaiHarian).cur, dailyKio = periodStats(D.kiosk.transaksiHarian).cur;
@@ -850,15 +865,15 @@
     ]);
     const kpiGrid = el('div', { class: 'kpi-grid' }, [hero, ...K.cards.map((c) => UI.kpiCard(c, { href: '#' + c.id, ringSize: 72 }))]);
 
-    // peta desa skematik: lokasi kiosk, aset bermasalah, balai desa; angka = warga per dusun
-    const points = petaTitik(), counts = petaCounts(wargaAll());
-    const mapHost = el('div', { class: 'mapframe' });
-    mapHost.append(UI.villageMap({ peta: D.peta, counts, points, onHover: (p, e) => tip.show(e.clientX, e.clientY, p.nama, [{ value: SEV_LABEL[p.sev], name: `${p.tipe} · ${p.detail}` }]), onLeave: tip.hide }));
-    const nWatch = points.filter((p) => p.sev !== 'ok').length;
+    // peta desa: lokasi kiosk, aset bermasalah, balai desa; angka = warga per dusun
+    const points = petaTitik();
+    const mapHost = el('div', { class: 'mapframe' }, mapApi.el);
+    const nWatch = points.filter((p) => p.sev !== 'ok').length, geo = D.peta.geo;
     const mapCard = el('article', { class: 'card mapcard' }, [
-      el('div', { class: 'card-head', style: 'margin-bottom:0' }, [el('div', {}, [el('h3', { text: 'Peta desa (skematik)' }), el('p', { text: `${nWatch} dari ${points.length} titik perlu perhatian · angka = jumlah warga per dusun` })])]),
+      el('div', { class: 'card-head', style: 'margin-bottom:0' }, [el('div', {}, [el('h3', { text: 'Peta desa' }), el('p', { text: `${nWatch} dari ${points.length} titik perlu perhatian · angka = jumlah warga per dusun` })])]),
       mapHost, UI.mapLegend(),
-      el('p', { class: 'note', text: 'Gambar skematik, bukan peta sungguhan. Arahkan kursor ke titik untuk detail.' }),
+      el('p', { class: 'note', text: 'Pilih wilayah (seluruh desa atau satu dusun), lalu tekan Kunci untuk membekukan tampilan. Tanpa kunci, peta bebas digeser tetapi tidak bisa keluar dari batas desa.' }),
+      geo.contoh ? el('p', { class: 'note warn', text: 'Lokasi peta ini hanya contoh. Isi koordinat desa Anda di data.js (peta.geo.batas) agar sesuai wilayah sebenarnya.' }) : null,
     ]);
 
     const nCrit = alerts.filter((a) => a.sev === 'critical').length;
@@ -908,6 +923,7 @@
     tip.hide();
     const alerts = buildAlerts(), K = kpis(state.days, alerts);
     app.replaceChildren(overview(alerts, K), secMobile(), secKiosk(), secAset(), secWarga(), secServer(), secBlangko());
+    mapApi.update(wargaAll());
     renderNav(K);
     const sp = D.meta.sumberPenduduk;
     document.getElementById('side-src').textContent = `Data warga: ${sp.jenis === 'api' ? 'API' : sp.jenis === 'csv' ? 'impor CSV' : 'data contoh'}${D.meta.dataContoh ? ' · bagian lain: data contoh' : ''}`;
@@ -951,6 +967,7 @@
     try { const s = localStorage.getItem('dash-theme'); if (s) root.dataset.theme = s; } catch (e) { /* abaikan */ }
     btn.addEventListener('click', () => {
       root.dataset.theme = dark() ? 'light' : 'dark';
+      mapApi.restyle();
       try { localStorage.setItem('dash-theme', root.dataset.theme); } catch (e) { /* abaikan */ }
       sync();
     });

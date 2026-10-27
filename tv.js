@@ -9,7 +9,7 @@
   'use strict';
   const {
     D, el, fmt, nfd, pct, sum, avg, slice, changePct, dShort, SEV_LABEL, statusIcon, pill, buildAlerts, blangkoStats,
-    W, wargaAll, ready, reload, periodOf, kpis, petaTitik, petaCounts,
+    W, wargaAll, ready, reload, periodOf, kpis, petaTitik, petaCounts, petaGeo,
   } = window.DashLib;
   const UI = window.DashUI;
 
@@ -120,32 +120,34 @@
     ]);
   }
 
-  /* ---------- peta ---------- */
+  /* ---------- peta (nyata, terkunci pada wilayah) ---------- */
+  // Satu peta dipakai terus; tiap render hanya data/penanda yang diperbarui. Bawaan TV: terkunci ke wilayah dari ?wilayah= (bawaan: seluruh desa).
+  const mapApi = window.DashMap.create({ controls: false, wilayah: q.get('wilayah') || 'desa', kunci: q.get('kunci') !== '0', slice: true });
   let mapTimer = null, alertTimer = null;
-  function renderMap(rows, sev) {
+  function renderMap(rows) {
     const points = petaTitik();
     const watch = points.filter((p) => p.sev !== 'ok');
     const cyc = watch.length ? watch : points;
     let i = 0;
-    const host = el('div', { class: 'map-svg' }), info = el('div', { class: 'map-info' });
-    const draw = () => {
+    const info = el('div', { class: 'map-info' });
+    const show = () => {
       const p = cyc[i % cyc.length];
-      host.replaceChildren(UI.villageMap({ peta: D.peta, counts: petaCounts(rows), points, active: p.id, slice: true }));
-      info.replaceChildren(
-        el('div', { class: 'tp', text: p.tipe }), el('div', { class: 't', text: p.nama }),
-        el('div', {}, pill(p.sev)), el('div', { class: 'd', text: p.detail })
-      );
+      mapApi.setActive(p.id);
+      info.replaceChildren(el('div', { class: 'tp', text: p.tipe }), el('div', { class: 't', text: p.nama }), el('div', {}, pill(p.sev)), el('div', { class: 'd', text: p.detail }));
     };
-    draw();
     clearInterval(mapTimer);
-    if (cyc.length > 1) mapTimer = setInterval(() => { i++; draw(); }, PAGE_SEC * 1000);
-    const nWatch = watch.length;
-    return el('section', { class: 'panel map', id: 'peta' }, [
-      host,
-      el('div', { class: 'map-title' }, ['Peta Desa (skematik)', el('span', { class: 'sub', text: `${nWatch} dari ${points.length} titik perlu perhatian` })]),
+    if (cyc.length > 1) mapTimer = setInterval(() => { i++; show(); }, PAGE_SEC * 1000);
+    const geo = D.peta.geo, wil = mapApi.state.wilayah;
+    const wLabel = wil === 'desa' ? 'Seluruh desa' : (petaGeo().wilayah.find((w) => w.key === wil) || { label: wil }).label;
+    const panelEl = el('section', { class: 'panel map', id: 'peta' }, [
+      el('div', { class: 'map-svg' }, mapApi.el),
+      el('div', { class: 'map-title' }, ['Peta Desa', el('span', { class: 'sub', text: `${wLabel}${mapApi.state.kunci ? ' (terkunci)' : ''} · ${watch.length} dari ${points.length} titik perlu perhatian` }), geo.contoh ? el('span', { class: 'map-demo', text: 'lokasi contoh' }) : null]),
       info,
       el('div', { class: 'map-leg' }, [UI.mapLegend(), el('div', { class: 'sub', style: 'margin-top:4px', text: 'Angka di peta = warga per dusun' })]),
     ]);
+    // dipanggil setelah panel masuk ke halaman
+    mounts.push(() => { mapApi.update(rows); show(); });
+    return panelEl;
   }
 
   /* ---------- peringatan ---------- */
