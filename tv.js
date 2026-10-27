@@ -1,3 +1,4 @@
+(window.__ver = window.__ver || {})['tv.js'] = '2026-10-27.4';
 /*
  * Tampilan TV: satu halaman, tanpa scroll, tanpa interaksi.
  * Parameter URL (opsional): ?days=7|30|90  ?theme=light|dark  ?refresh=<menit>  ?page=<detik pergantian peringatan/peta>
@@ -38,6 +39,13 @@
     return el('span', { class: 'd ' + (up === goodWhenUp ? 'good' : 'bad'), text: (up ? '▲ +' : '▼ −') + nfd(1).format(Math.abs(v)) + unit });
   };
   const mounts = [];
+  /** Satu bagian yang error tidak boleh mematikan seluruh layar: tampilkan pesan di tempatnya. */
+  const safe = (nama, fn) => {
+    try { return fn(); } catch (e) {
+      console.error(e);
+      return el('section', { class: 'panel', style: 'justify-content:center' }, el('div', { class: 'sub', text: `Bagian "${nama}" gagal ditampilkan: ${e.message}. Biasanya karena berkas tidak sama versinya; unggah ulang semua berkas dan tekan Ctrl+F5.` }));
+    }
+  };
   function panel(cls, num, title, sev, body, extraHead) {
     return el('section', { class: 'panel ' + cls, id: cls.split(' ')[0] }, [
       el('div', { class: 'ph' }, [num ? el('span', { class: 'num', text: num }) : null, el('h2', { text: title }), extraHead || null, sev ? pill(sev) : null]),
@@ -125,6 +133,7 @@
   const mapApi = !window.DashMap ? { el: el('div', { class: 'gm-note', style: 'position:static', text: 'Peta tidak bisa dimuat: berkas map.js atau folder lib/ belum terunggah.' }), state: { wilayah: 'desa', kunci: false }, update() {}, setActive() {}, restyle() {}, attach() {} } : window.DashMap.create({ controls: false, wilayah: q.get('wilayah') || 'desa', kunci: q.get('kunci') !== '0', slice: true });
   let mapTimer = null, alertTimer = null;
   function renderMap(rows) {
+    if (!petaGeo()) return el('section', { class: 'panel map', id: 'peta', style: 'padding:24px' }, el('div', { class: 'sub', text: 'Data peta tidak lengkap: data.js kemungkinan versi lama. Unggah ulang data.js dari zip terbaru.' }));
     const points = petaTitik();
     const watch = points.filter((p) => p.sev !== 'ok');
     const cyc = watch.length ? watch : points;
@@ -250,8 +259,8 @@
     renderHead(K);
     document.getElementById('kpis').replaceChildren(...K.cards.map((c) => UI.kpiCard(c, { ringSize: 68 })));
     mounts.length = 0;
-    document.getElementById('main').replaceChildren(pWarga(K.sevOf('warga'), a), renderMap(rows), pAlerts(alerts));
-    document.getElementById('bottom').replaceChildren(pMobile(K.sevOf('mobile')), pKiosk(K.sevOf('kiosk')), pAset(K.sevOf('aset')), pServer(K.sevOf('server')), pBlangko(K.sevOf('blangko')));
+    document.getElementById('main').replaceChildren(safe('Data Kependudukan', () => pWarga(K.sevOf('warga'), a)), safe('Peta', () => renderMap(rows)), safe('Perlu perhatian', () => pAlerts(alerts)));
+    document.getElementById('bottom').replaceChildren(safe('Aplikasi Warga', () => pMobile(K.sevOf('mobile'))), safe('Kiosk', () => pKiosk(K.sevOf('kiosk'))), safe('Aset', () => pAset(K.sevOf('aset'))), safe('Server', () => pServer(K.sevOf('server'))), safe('Blangko', () => pBlangko(K.sevOf('blangko'))));
     mounts.forEach((f) => f());
   }
 

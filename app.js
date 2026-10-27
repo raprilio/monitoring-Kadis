@@ -1,3 +1,4 @@
+(window.__ver = window.__ver || {})['app.js'] = '2026-10-27.4';
 (() => {
   'use strict';
 
@@ -868,7 +869,7 @@
     // peta desa: lokasi kiosk, aset bermasalah, balai desa; angka = warga per dusun
     const points = petaTitik();
     const mapHost = el('div', { class: 'mapframe' }, mapApi.el);
-    const nWatch = points.filter((p) => p.sev !== 'ok').length, geo = D.peta.geo;
+    const nWatch = points.filter((p) => p.sev !== 'ok').length, geo = (D.peta && D.peta.geo) || {};
     const mapCard = el('article', { class: 'card mapcard' }, [
       el('div', { class: 'card-head', style: 'margin-bottom:0' }, [el('div', {}, [el('h3', { text: 'Peta desa' }), el('p', { text: `${nWatch} dari ${points.length} titik perlu perhatian · angka = jumlah warga per dusun` })])]),
       mapHost, UI.mapLegend(),
@@ -922,7 +923,13 @@
   function render() {
     tip.hide();
     const alerts = buildAlerts(), K = kpis(state.days, alerts);
-    app.replaceChildren(overview(alerts, K), secMobile(), secKiosk(), secAset(), secWarga(), secServer(), secBlangko());
+    const safe = (nama, fn) => {
+      try { return fn(); } catch (e) {
+        console.error(e);
+        return el('section', { class: 'sec' }, el('article', { class: 'card' }, `Bagian "${nama}" gagal ditampilkan: ${e.message}. Biasanya karena berkas tidak sama versinya; unggah ulang semua berkas dan tekan Ctrl+F5.`));
+      }
+    };
+    app.replaceChildren(safe('Ringkasan', () => overview(alerts, K)), safe('Aplikasi Warga', secMobile), safe('Kiosk', secKiosk), safe('Aset', secAset), safe('Data Kependudukan', secWarga), safe('Server', secServer), safe('Blangko', secBlangko));
     mapApi.update(wargaAll());
     renderNav(K);
     const sp = D.meta.sumberPenduduk;

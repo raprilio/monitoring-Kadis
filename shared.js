@@ -1,3 +1,4 @@
+(window.__ver = window.__ver || {})['shared.js'] = '2026-10-27.4';
 /* Fungsi bersama untuk tampilan rinci (index.html) dan tampilan TV (tv.html). */
 window.DashLib = (() => {
   'use strict';
@@ -172,7 +173,7 @@ window.DashLib = (() => {
     const kioskBy = new Map(D.kiosk.perangkat.map((k) => [k.nama, k]));
     const asetBy = new Map(D.aset.perluPerhatian.map((a) => [a.nama, a]));
     const out = [];
-    D.peta.titik.forEach((t) => {
+    ((D.peta && D.peta.titik) || []).forEach((t) => {
       if (t.jenis === 'kiosk') {
         const k = kioskBy.get(t.ref);
         if (!k) return;
@@ -194,7 +195,9 @@ window.DashLib = (() => {
   /* ---------- peta nyata: koordinat, wilayah, batas ---------- */
   /** Poligon/titik/wilayah dalam [lintang, bujur]. Memakai GeoJSON dusun bila ada, bila tidak: konversi dari gambar skematik. */
   function petaGeo() {
-    const P = D.peta, g = P.geo, [sw, ne] = g.batas;
+    const P = D.peta, g = P && P.geo;
+    if (!g || !g.batas) return null; // data.js lama (tanpa peta nyata)
+    const [sw, ne] = g.batas;
     const toLL = ([x, y]) => [ne[0] - (y / P.tinggi) * (ne[0] - sw[0]), sw[1] + (x / P.lebar) * (ne[1] - sw[1])];
     const ring = (c) => c.map(([lng, lat]) => [lat, lng]);
     const fromGj = new Map();

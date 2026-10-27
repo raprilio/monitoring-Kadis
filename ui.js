@@ -1,3 +1,4 @@
+(window.__ver = window.__ver || {})['ui.js'] = '2026-10-27.4';
 /* Komponen visual bersama: ikon, cincin, donat, kartu KPI, peta desa skematik. */
 window.DashUI = (() => {
   'use strict';

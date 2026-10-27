@@ -1,3 +1,4 @@
+(window.__ver = window.__ver || {})['data.js'] = '2026-10-27.4';
 /*
  * DATA CONTOH (dummy) — bukan data desa yang sebenarnya.
  *

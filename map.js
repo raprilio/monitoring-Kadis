@@ -1,3 +1,4 @@
+(window.__ver = window.__ver || {})['map.js'] = '2026-10-27.4';
 /*
  * Peta nyata (OpenStreetMap + Leaflet) yang bisa DIKUNCI ke wilayah tertentu.
  *  - Wilayah: seluruh desa atau satu dusun (tampilan langsung menyesuaikan).
@@ -153,6 +154,7 @@ window.DashMap = (() => {
     function render() {
       if (!host.isConnected) return;
       data = petaGeo();
+      if (!data) { host.replaceChildren(el('div', { class: 'gm-note', style: 'position:static', text: 'Data peta tidak lengkap: data.js kemungkinan versi lama. Unggah ulang data.js dari zip terbaru.' })); return; }
       counts = petaCounts(st.rows);
       if (st.mode === 'skema' || !useLeaflet()) {
         if (st.mode !== 'skema') { st.mode = 'skema'; st.note = useLeaflet() ? st.note : ''; }

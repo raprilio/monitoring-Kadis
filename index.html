@@ -7,30 +7,36 @@
 <meta name="description" content="Ringkasan laporan seluruh aplikasi desa: aplikasi warga, kiosk, inventaris aset, data warga, server, dan blangko.">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <script>
-/* Pemeriksa pemasangan: bila ada berkas yang gagal dimuat (mis. belum terunggah ke hosting), tampilkan pesan yang jelas, bukan layar kosong. */
+/* Pemeriksa pemasangan: tampilkan pesan yang jelas (bukan layar kosong) bila berkas hilang, versinya tidak sama, atau skrip error. */
+window.__expect = ["config.js", "data.js", "warga.js", "shared.js", "ui.js", "map.js", "app.js"];
 (function () {
   var miss = [], errs = [];
+  function note(m) { if (m && !/ResizeObserver/.test(m) && errs.indexOf(m) < 0) errs.push(m); }
   addEventListener('error', function (e) {
     var t = e.target;
-    if (t && t !== window && (t.getAttribute && (t.getAttribute('src') || t.getAttribute('href')))) miss.push(t.getAttribute('src') || t.getAttribute('href'));
-    else if (e.message && !/ResizeObserver/.test(e.message)) errs.push(e.message);
+    if (t && t !== window && t.getAttribute && (t.getAttribute('src') || t.getAttribute('href'))) miss.push((t.getAttribute('src') || t.getAttribute('href')).split('?')[0]);
+    else note(e.message);
   }, true);
-  addEventListener('load', function () {
-    setTimeout(function () {
-      var need = !window.DashLib || !window.DashUI || !window.DASHBOARD_DATA || !window.WargaLib;
-      if (!need && !miss.length && !errs.length) return;
-      var b = document.createElement('div');
-      b.setAttribute('role', 'alert');
-      b.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;padding:12px 16px;border-radius:12px;background:#fff3cd;color:#3b2f00;border:2px solid #fab219;font:15px/1.4 system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.3)';
-      b.textContent = (miss.length ? 'Berkas gagal dimuat: ' + miss.join(', ') + '. ' : '') + (errs.length ? 'Galat skrip: ' + errs[0] + '. ' : '') +
-        'Pastikan SELURUH isi zip (termasuk folder lib/) diunggah ke folder yang sama dengan halaman ini, dan nama berkas persis sama (huruf kecil).';
-      document.body.appendChild(b);
-    }, 400);
-  });
+  addEventListener('unhandledrejection', function (e) { note(e.reason && e.reason.message ? e.reason.message : String(e.reason)); });
+  function show() {
+    var v = window.__ver || {}, vs = {}, bad = [];
+    (window.__expect || []).forEach(function (f) { if (miss.indexOf(f) < 0) { if (!v[f]) bad.push(f + ' (lama / tidak berversi)'); else vs[v[f]] = 1; } });
+    var distinct = Object.keys(vs);
+    if (distinct.length > 1) bad.push('versi campur: ' + distinct.join(' & '));
+    var old = document.getElementById('cek-pasang'); if (old) old.remove();
+    if (!miss.length && !errs.length && !bad.length) return;
+    var b = document.createElement('div');
+    b.id = 'cek-pasang'; b.setAttribute('role', 'alert');
+    b.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;padding:12px 16px;border-radius:12px;background:#fff3cd;color:#3b2f00;border:2px solid #fab219;font:15px/1.4 system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.3)';
+    b.textContent = (miss.length ? 'Berkas gagal dimuat: ' + miss.join(', ') + '. ' : '') + (bad.length ? 'Berkas tidak cocok: ' + bad.join(', ') + '. ' : '') + (errs.length ? 'Galat: ' + errs[0] + '. ' : '') +
+      'Unggah ulang SELURUH isi zip terbaru (termasuk folder lib/) ke folder yang sama, lalu tekan Ctrl+F5 untuk membersihkan cache.';
+    document.body.appendChild(b);
+  }
+  addEventListener('load', function () { setTimeout(show, 600); setTimeout(show, 3500); });
 })();
 </script>
 <link rel="stylesheet" href="lib/leaflet/leaflet.css">
-<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="theme.css?v=2026-10-27.4">
 <style>
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; scroll-padding-top: 96px; }
@@ -330,13 +336,13 @@
   </div>
 </div>
 
-<script src="config.js"></script>
-<script src="data.js"></script>
-<script src="warga.js"></script>
-<script src="shared.js"></script>
+<script src="config.js?v=2026-10-27.4"></script>
+<script src="data.js?v=2026-10-27.4"></script>
+<script src="warga.js?v=2026-10-27.4"></script>
+<script src="shared.js?v=2026-10-27.4"></script>
 <script src="lib/leaflet/leaflet.js"></script>
-<script src="ui.js"></script>
-<script src="map.js"></script>
-<script src="app.js"></script>
+<script src="ui.js?v=2026-10-27.4"></script>
+<script src="map.js?v=2026-10-27.4"></script>
+<script src="app.js?v=2026-10-27.4"></script>
 </body>
 </html>

@@ -1,3 +1,4 @@
+(window.__ver = window.__ver || {})['warga.js'] = '2026-10-27.4';
 /*
  * Logika data kependudukan: bentuk data, turunan (usia, status, kewajiban KTP-el/KIA), filter,
  * agregat, dan impor CSV hasil ekspor SIAK.

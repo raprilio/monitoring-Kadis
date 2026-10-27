@@ -73,7 +73,7 @@ Halaman ini 100% statis (HTML + JS + CSS), tidak perlu PHP atau database.
 2. Berkas harus berada di folder yang sama dengan `index.html`, dengan nama persis (huruf kecil). Jangan ada folder tambahan di antaranya (mis. `public_html/monitoring-kadis/monitoring-kadis/`).
 3. Buka alamatnya, mis. `https://situsanda.id/` atau `https://situsanda.id/tv.html`. Bila hosting menampilkan halaman bawaan ("Coming soon", `default.html`, `index.php`), hapus berkas bawaan itu atau buka `index.html` secara eksplisit.
 4. Peta dasar diambil langsung dari browser pengunjung ke `tile.openstreetmap.org`, jadi perangkat yang menampilkan harus punya internet. Bila tidak bisa, otomatis tampil peta skematik.
-5. Bila ada berkas yang gagal dimuat, halaman menampilkan kotak kuning berisi nama berkas yang hilang. Itu petunjuk pertama saat "tidak muncul".
+5. Bila ada berkas yang hilang, versinya tidak sama (mis. hanya sebagian berkas yang diganti), atau skrip error, halaman menampilkan **kotak kuning** berisi penyebabnya. Gejala khas berkas campur: header dan kartu KPI tampil tetapi panel di bawahnya kosong. Solusi: unggah ulang SEMUA berkas dari zip terbaru (timpa semuanya), lalu tekan Ctrl+F5. Nama berkas diberi `?v=...` agar cache hosting/browser tidak menyajikan versi lama.
 6. Data warga (NIK, nama) **jangan** diunggah ke hosting publik tanpa login; lihat bagian Privasi. Halaman statis ini tidak punya autentikasi.
 
 ## Menjalankan
