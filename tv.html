@@ -7,7 +7,7 @@
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <script>
 /* Pemeriksa pemasangan: tampilkan pesan yang jelas (bukan layar kosong) bila berkas hilang, versinya tidak sama, atau skrip error. */
-window.__expect = ["config.js", "data.js", "warga.js", "shared.js", "ui.js", "map.js", "tv.js"];
+window.__expect = ["config.js", "data.js", "warga.js", "sekolah.js", "shared.js", "pengaturan.js", "ui.js", "map.js", "tv.js"];
 (function () {
   var miss = [], errs = [];
   function note(m) { if (m && !/ResizeObserver/.test(m) && errs.indexOf(m) < 0) errs.push(m); }
@@ -35,7 +35,7 @@ window.__expect = ["config.js", "data.js", "warga.js", "shared.js", "ui.js", "ma
 })();
 </script>
 <link rel="stylesheet" href="lib/leaflet/leaflet.css">
-<link rel="stylesheet" href="theme.css?v=2026-10-27.4">
+<link rel="stylesheet" href="theme.css?v=2026-10-28.1">
 <style>
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; overflow: hidden; background: var(--page); }
@@ -49,22 +49,22 @@ window.__expect = ["config.js", "data.js", "warga.js", "shared.js", "ui.js", "ma
     position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0;
     padding: 22px 24px;
   }
-  .col { height: 100%; display: grid; grid-template-rows: 88px 116px minmax(0, 1fr) 272px; gap: 14px; min-height: 0; min-width: 0; }
+  .col { height: 100%; display: grid; grid-template-rows: 80px 116px minmax(0, 1fr) 300px; gap: 14px; min-height: 0; min-width: 0; }
 
   /* ---------- header ---------- */
   .head { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 24px; min-width: 0; }
-  .brand h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; }
+  .brand h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; }
   .brand p { font-size: 19px; color: var(--ink2); white-space: nowrap; }
   .demo { display: inline-block; margin-left: 8px; padding: 0 12px; border: 1px solid var(--border); border-radius: 999px; font-size: 17px; color: var(--ink2); }
   .flt { font-size: 19px; font-weight: 600; margin-left: 10px; padding: 1px 16px; border-radius: 999px; border: 2px solid var(--fc, var(--muted)); background: transparent; cursor: pointer; vertical-align: 3px; }
   .flt:focus-visible { outline: 3px solid var(--s1); outline-offset: 2px; }
   .hero { text-align: center; }
-  .hero .h-label { font-size: 18px; color: var(--ink2); }
+  .hero .h-label { font-size: 17px; line-height: 1.2; color: var(--ink2); }
   .hero .h-row { display: flex; align-items: baseline; justify-content: center; gap: 16px; }
-  .hero .h-val { font-size: 60px; line-height: 1.05; font-weight: 700; letter-spacing: -0.02em; }
+  .hero .h-val { font-size: 52px; line-height: 1; font-weight: 700; letter-spacing: -0.02em; }
   .hero .h-delta { font-size: 21px; font-weight: 600; }
   .clock { text-align: right; }
-  .clock .c-time { font-size: 52px; line-height: 1.05; font-weight: 700; }
+  .clock .c-time { font-size: 46px; line-height: 1.05; font-weight: 700; }
   .clock .c-date { font-size: 19px; color: var(--ink2); }
 
   /* ---------- KPI ---------- */
@@ -78,7 +78,7 @@ window.__expect = ["config.js", "data.js", "warga.js", "shared.js", "ui.js", "ma
 
   /* ---------- panel ---------- */
   .main { display: grid; grid-template-columns: 500px minmax(0, 1fr) 500px; gap: 14px; min-height: 0; }
-  .bottom { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; min-height: 0; }
+  .bottom { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; min-height: 0; }
   .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-height: 0; min-width: 0; overflow: hidden; }
   .ph { display: flex; align-items: center; gap: 10px; min-height: 30px; }
   .ph .num { flex: none; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-weight: 700; font-size: 17px; background: color-mix(in srgb, var(--s1) 18%, var(--surface)); }
@@ -163,13 +163,15 @@ window.__expect = ["config.js", "data.js", "warga.js", "shared.js", "ui.js", "ma
   </div>
 </div>
 
-<script src="config.js?v=2026-10-27.4"></script>
-<script src="data.js?v=2026-10-27.4"></script>
-<script src="warga.js?v=2026-10-27.4"></script>
-<script src="shared.js?v=2026-10-27.4"></script>
+<script src="config.js?v=2026-10-28.1"></script>
+<script src="data.js?v=2026-10-28.1"></script>
+<script src="warga.js?v=2026-10-28.1"></script>
+<script src="sekolah.js?v=2026-10-28.1"></script>
+<script src="shared.js?v=2026-10-28.1"></script>
+<script src="pengaturan.js?v=2026-10-28.1"></script>
 <script src="lib/leaflet/leaflet.js"></script>
-<script src="ui.js?v=2026-10-27.4"></script>
-<script src="map.js?v=2026-10-27.4"></script>
-<script src="tv.js?v=2026-10-27.4"></script>
+<script src="ui.js?v=2026-10-28.1"></script>
+<script src="map.js?v=2026-10-28.1"></script>
+<script src="tv.js?v=2026-10-28.1"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-(window.__ver = window.__ver || {})['data.js'] = '2026-10-27.4';
+(window.__ver = window.__ver || {})['data.js'] = '2026-10-28.1';
 /*
  * DATA CONTOH (dummy) — bukan data desa yang sebenarnya.
  *
@@ -163,6 +163,54 @@
   }
   const warga = buatWarga();
 
+  /* ---------- data sekolah contoh (sintetis), diturunkan dari warga usia sekolah ---------- */
+  function buatSekolah(wg) {
+    // data "terakhir diperbarui" pertengahan Mei (akhir tahun ajaran); setelah 1 Juli dashboard menaikkan kelas otomatis
+    const snap = new Date(today.getFullYear(), 4, 15);
+    if (today < snap) snap.setFullYear(snap.getFullYear() - 1);
+    const taY = snap.getMonth() >= 6 ? snap.getFullYear() : snap.getFullYear() - 1;
+    const ta = taY + '/' + (taY + 1);
+    const taNow = (today.getMonth() >= 6 ? today.getFullYear() : today.getFullYear() - 1);
+    const ageAt = (iso, d0) => { const [y, m, dd] = iso.split('-').map(Number); let a = d0.getFullYear() - y; if (d0.getMonth() + 1 < m || (d0.getMonth() + 1 === m && d0.getDate() < dd)) a--; return a; };
+    const sekolah = [
+      { id: 'sd1', npsn: '20300001', nama: 'SDN 1 Contoh', jenjang: 'SD', dusun: 'Dusun Krajan' },
+      { id: 'sd2', npsn: '20300002', nama: 'SDN 2 Contoh', jenjang: 'SD', dusun: 'Dusun Sumber' },
+      { id: 'smp1', npsn: '20300101', nama: 'SMPN 1 Contoh', jenjang: 'SMP', dusun: 'Dusun Krajan' },
+      { id: 'smk1', npsn: '20300201', nama: 'SMKN 1 Contoh', jenjang: 'SMK', dusun: 'Dusun Tegalan' },
+      { id: 'smk2', npsn: '20300202', nama: 'SMK Nusantara Contoh', jenjang: 'SMK', dusun: 'Dusun Karanganyar' },
+    ];
+    const byJ = (j) => sekolah.filter((s) => s.jenjang === j);
+    const pilih = (j, dusun) => { const l = byJ(j), sama = l.filter((s) => s.dusun === dusun); return (sama.length && rnd() < 0.7 ? sama : l)[Math.floor(rnd() * (sama.length && rnd() < 0.7 ? sama : l).length)] || l[0]; };
+    const siswa = [];
+    let seq = 1;
+    const rec = (w, s, jenjang, kelas, tahun) => ({ nisn: '00' + String(seq++).padStart(8, '0'), nik: w.nik, nama: w.nama, jk: w.jk, tglLahir: w.tglLahir, sekolahId: s.id, sekolah: s.nama, npsn: s.npsn, jenjang, kelas, tahunAjaran: tahun, status: 'aktif' });
+    wg.forEach((w) => {
+      const a = ageAt(w.tglLahir, snap);
+      let jenjang, kelas, p;
+      if (a >= 7 && a <= 12) { jenjang = 'SD'; kelas = a - 6; p = 0.98; }
+      else if (a >= 13 && a <= 15) { jenjang = 'SMP'; kelas = a - 6; p = 0.94; }
+      else if (a >= 16 && a <= 18) { jenjang = 'SMK'; kelas = a - 6; p = 0.6; }
+      else return;
+      if (rnd() > p) return;
+      if (rnd() < 0.06 && kelas > (jenjang === 'SD' ? 1 : jenjang === 'SMP' ? 7 : 10)) kelas--; // sebagian tinggal kelas
+      const s = pilih(jenjang, w.dusun);
+      siswa.push(rec(w, s, jenjang, kelas, ta));
+      // pendaftar baru kelas 1 SD pada tahun ajaran baru (anak yang kini berusia 7 tahun; sebagian pendaftaran sudah masuk)
+      // (ditangani di bawah, di luar loop jenjang)
+      // lulusan SD/SMP yang sudah terdaftar di jenjang berikutnya pada tahun ajaran baru (pendaftaran sudah masuk)
+      if (taNow > taY && ((jenjang === 'SD' && kelas === 6) || (jenjang === 'SMP' && kelas === 9)) && rnd() < 0.55) {
+        const nj = jenjang === 'SD' ? 'SMP' : 'SMK';
+        siswa.push(rec(w, pilih(nj, w.dusun), nj, nj === 'SMP' ? 7 : 10, taNow + '/' + (taNow + 1)));
+      }
+    });
+    if (taNow > taY) {
+      const jul = new Date(taNow, 6, 1);
+      wg.forEach((w) => { if (ageAt(w.tglLahir, jul) === 7 && rnd() < 0.55) siswa.push(rec(w, pilih('SD', w.dusun), 'SD', 1, taNow + '/' + (taNow + 1))); });
+    }
+    return { diperbarui: snap.toISOString(), sekolah, siswa };
+  }
+  const dataSekolah = buatSekolah(warga);
+
   window.DASHBOARD_DATA = {
     meta: {
       desa: 'Desa Contoh',
@@ -273,6 +321,9 @@
         { nama: 'Proyektor balai', kategori: 'Perangkat IT', kondisi: 'rusak', lokasi: 'Balai Desa', catatan: 'Lampu mati' },
       ],
     },
+
+    // 7. Data sekolah (SD/SMP/SMK): bentuk data ada di sekolah.js. Data di bawah SINTETIS; ganti lewat impor CSV atau DASHBOARD_CONFIG.apiSekolah.
+    sekolah: dataSekolah,
 
     // 4. Data kependudukan (SIAK): satu baris per warga (bentuk data: lihat warga.js). Data di bawah SINTETIS.
     // Ganti dengan hasil impor CSV SIAK di halaman, atau isi lewat API (DASHBOARD_CONFIG.apiPenduduk di config.js).

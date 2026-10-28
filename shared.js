@@ -1,4 +1,4 @@
-(window.__ver = window.__ver || {})['shared.js'] = '2026-10-27.4';
+(window.__ver = window.__ver || {})['shared.js'] = '2026-10-28.1';
 /* Fungsi bersama untuk tampilan rinci (index.html) dan tampilan TV (tv.html). */
 window.DashLib = (() => {
   'use strict';
@@ -129,10 +129,41 @@ window.DashLib = (() => {
     if (a.nikGanda) add('critical', `${fmt(a.nikGanda)} NIK ganda di data kependudukan`, 'Periksa dan perbaiki di SIAK', 'warga', 'Data warga');
     const nikBuruk = a.kualitas[0].value < 100 ? Math.round(((100 - a.kualitas[0].value) / 100) * a.n) : 0;
     if (nikBuruk) add('warning', `${fmt(nikBuruk)} NIK tidak valid (bukan 16 digit)`, 'Periksa dan perbaiki di SIAK', 'warga', 'Data warga');
+    if (D.sekolah && D.sekolah.siswa && D.sekolah.siswa.length) {
+      const sk = sekolahAgg();
+      if (sk.belumLanjut) add('warning', `${fmt(sk.belumLanjut)} lulusan SD/SMP belum tercatat melanjutkan`, 'Menunggu data sekolah diperbarui, atau perlu didekati orang tuanya', 'sekolah', 'Pendidikan');
+      if (sk.ats && sk.ats.total) add(sk.ats.total / (sk.ats.dari || 1) > 0.25 ? 'critical' : 'warning', `${fmt(sk.ats.total)} anak usia sekolah belum tercatat bersekolah`, `Dari ${fmt(sk.ats.dari)} anak usia 7–18 tahun`, 'sekolah', 'Pendidikan');
+    }
     const order = { critical: 0, warning: 1 };
     return A.sort((a, b) => order[a.sev] - order[b.sev]);
   }
 
+
+
+  /* ---------- data sekolah ---------- */
+  const SK = window.SekolahLib;
+  const sekolahAll = () => SK.proyeksi((D.sekolah && D.sekolah.siswa) || []);
+  const sekolahAgg = () => SK.aggregate(sekolahAll(), wargaAll());
+  D.meta.sumberSekolah = { jenis: 'contoh' };
+  /** Ambil data sekolah dari API bila DASHBOARD_CONFIG.apiSekolah diisi (array siswa, atau { siswa: [...], diperbarui }). */
+  async function loadSekolah() {
+    const url = (window.DASHBOARD_CONFIG || {}).apiSekolah;
+    if (!url) return;
+    try {
+      const res = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const j = await res.json();
+      const siswa = Array.isArray(j) ? j : j && (j.siswa || j.records);
+      if (!Array.isArray(siswa)) throw new Error('format data tidak dikenali (harus array siswa)');
+      D.sekolah = { diperbarui: (j && j.diperbarui) || new Date().toISOString(), sekolah: (j && j.sekolah) || [], siswa };
+      D.meta.sumberSekolah = { jenis: 'api', url, jumlah: siswa.length, diambil: new Date().toISOString() };
+    } catch (e) {
+      const prev = D.meta.sumberSekolah;
+      D.meta.sumberSekolah = prev.jenis === 'api' ? { ...prev, galat: `Pembaruan terakhir gagal (${e.message}); memakai data sebelumnya.` } : { jenis: 'contoh', galat: `Gagal mengambil ${url}: ${e.message}. Memakai data contoh.` };
+    }
+  }
+  const readyAll = Promise.all([ready, loadSekolah()]).then(() => undefined);
+  const reloadAll = () => Promise.all([loadWarga(), loadSekolah()]).then(() => undefined);
 
   /* ---------- statistik periode & kartu KPI (dipakai bersama oleh index.html dan tv.html) ---------- */
   function periodOf(arr, days, mode = 'sum') {
@@ -214,16 +245,20 @@ window.DashLib = (() => {
       const pa = (Math.max(...la) - Math.min(...la)) * 0.08, po = (Math.max(...lo) - Math.min(...lo)) * 0.08;
       return [[Math.min(...la) - pa, Math.min(...lo) - po], [Math.max(...la) + pa, Math.max(...lo) + po]];
     };
-    const dusun = P.dusun.map((d) => {
+    const palsu = g.contoh && !fromGj.size; // bentuk dusun hasil konversi gambar skematik hanya layak di lokasi contoh
+    const adaDusun = g.contoh || fromGj.size > 0;
+    const dusun = (adaDusun ? P.dusun.filter((d) => g.contoh || fromGj.has(d.nama)) : []).map((d) => { // di wilayah nyata hanya dusun yang punya batas asli
       const polys = fromGj.get(d.nama) || [d.poligon.map(toLL)];
       const flat = polys.flat();
       const label = fromGj.has(d.nama) ? [sum(flat.map((p) => p[0])) / flat.length, sum(flat.map((p) => p[1])) / flat.length] : toLL(d.label);
       return { nama: d.nama, key: d.nama.replace(/^Dusun\s+/i, '').toLowerCase().replace(/\W+/g, '-'), poligon: polys, label, bounds: bbox(flat) };
     });
     const desaBounds = [[sw[0], sw[1]], [ne[0], ne[1]]];
-    const titik = petaTitik().map((p) => ({ ...p, ll: p.lat != null && p.lng != null ? [p.lat, p.lng] : toLL([p.x, p.y]) }));
+    const semuaTitik = petaTitik();
+    const titik = semuaTitik.filter((p) => g.contoh || (p.lat != null && p.lng != null)).map((p) => ({ ...p, ll: p.lat != null && p.lng != null ? [p.lat, p.lng] : toLL([p.x, p.y]) }));
+    const tanpaKoordinat = semuaTitik.length - titik.length;
     const wilayah = [{ key: 'desa', label: 'Seluruh desa', bounds: desaBounds }, ...dusun.map((d) => ({ key: d.key, label: d.nama, bounds: d.bounds }))];
-    return { geo: g, dusun, titik, wilayah, desaBounds };
+    return { geo: g, dusun, titik, wilayah, desaBounds, desaPoligon: g.desaPoligon || null, tanpaKoordinat, adaDusun };
   }
   const petaCounts = (rows) => {
     const m = new Map();
@@ -234,6 +269,6 @@ window.DashLib = (() => {
   return {
     D, nf, nfd, fmt, fmt1, pct, compact, rupiah, sum, avg, clamp, slice, changePct, dShort, dLong,
     el, SEV_LABEL, statusIcon, pill, blangkoStats, buildAlerts,
-    W, wargaAll, ready, reload: loadWarga, periodOf, kpis, petaTitik, petaCounts, petaGeo,
+    W, wargaAll, ready: readyAll, reload: reloadAll, periodOf, kpis, petaTitik, petaCounts, petaGeo, SK, sekolahAll, sekolahAgg,
   };
 })();

@@ -4,7 +4,7 @@ Dashboard monitoring untuk Kepala Desa: satu tempat untuk laporan seluruh aplika
 
 - `index.html`: tampilan rinci (sidebar navigasi, KPI, peta desa, filter, tabel, isi data warga).
 - `tv.html`: tampilan TV satu layar tanpa scroll ("command center": KPI bercincin, peta desa, peringatan; hanya angka gabungan, tidak pernah nama/NIK).
-- `theme.css` (tema terang/gelap), `ui.js` (cincin, donat, kartu KPI, peta), `shared.js`, `warga.js`, `app.js`, `tv.js`, `data.js`, `config.js`.
+- `theme.css` (tema terang/gelap), `ui.js` (cincin, donat, kartu KPI, peta skematik), `map.js` (peta nyata), `pengaturan.js` + `pengaturan-ui.js` (pengaturan wilayah), `warga.js` (data SIAK), `sekolah.js` (data sekolah), `shared.js`, `app.js`, `tv.js`, `data.js`, `config.js`, `lib/leaflet/`.
 
 ## Tampilan
 
@@ -14,6 +14,23 @@ Gaya visual mengikuti referensi: sidebar gelap dengan menu bergambar, baris kart
 
 **Koordinat di `data.js` hanyalah contoh** (sebuah kawasan nyata yang dipilih sembarang, ditandai "lokasi contoh" di layar); batas dusun dan letak titiknya juga contoh. Untuk wilayah desa Anda: isi `peta.geo.batas` (sudut barat daya dan timur laut, `[lintang, bujur]`), `peta.geo.dusunGeojson` (batas dusun asli, FeatureCollection dengan `properties.nama` sama seperti nama dusun di data), dan `lat`/`lng` pada tiap titik di `peta.titik`. Bila peta dasar tidak bisa dimuat (tanpa internet), tampilan otomatis memakai peta skematik sebagai cadangan.
 Catatan: peta dasar diambil dari server OpenStreetMap (`peta.geo.tiles.url`). Kebijakan penggunaan OSM membatasi pemakaian berat; untuk TV yang menyala terus, pakai penyedia peta/server tile sendiri dengan mengganti alamat itu, dan tetap cantumkan atribusinya.
+
+## Pengaturan wilayah peta (manual dan otomatis)
+
+Tombol **Pengaturan** (kanan atas `index.html`) atau **Atur wilayah** (kartu peta) membuka dialog dengan pratinjau peta:
+- **Otomatis:** (1) cari nama desa di OpenStreetMap, ambil kotak batas dan garis batas bila ada; (2) pakai lokasi perangkat ini (+ radius km); (3) cocokkan ke titik kiosk/aset/balai yang sudah berkoordinat; (4) cari garis batas tiap dusun di OSM (yang tidak ada di OSM tidak ditampilkan, tidak dikarang).
+- **Manual:** isi koordinat batas (barat daya dan timur laut) atau klik dua sudut di peta, tempel GeoJSON batas dusun, atur zoom dan server peta.
+- **Titik lokasi:** isi lintang/bujur tiap kiosk, aset, dan balai, atau klik di peta, atau geser penandanya. Titik tanpa koordinat tidak ditampilkan di wilayah nyata (agar tidak ada posisi palsu).
+
+Penyimpanan: **Terapkan & simpan** menyimpan di browser itu saja. Agar TV dan semua perangkat ikut, tekan **Unduh config.js** lalu unggah menimpa `config.js` di hosting. Tersedia juga ekspor JSON (cadangan) dan impor. Pencarian otomatis memakai layanan Nominatim (OpenStreetMap) dari browser Anda, hanya saat tombol ditekan.
+
+## Pendidikan (data sekolah) dengan pembaruan otomatis
+
+Bagian 7 menampilkan jumlah anak **SD, SMP, SMK** (dan SMA bila ada di data), per kelas dan per sekolah. Sumber: data sekolah (mis. ekspor Dapodik) lewat impor CSV atau `apiSekolah` di `config.js`; bentuk data di `sekolah.js`.
+- **Otomatis saat tahun ajaran baru (1 Juli):** siswa aktif naik kelas; yang melewati kelas akhir (SD 6, SMP 9, SMK/SMA 12) menjadi **lulus**; lulusan SD/SMP yang belum ada di jenjang berikutnya ditandai "belum tercatat melanjutkan" dan statusnya hilang sendiri saat data sekolah yang baru memuat siswa itu di jenjang berikutnya.
+- **Anak usia 7–18 tahun yang belum tercatat bersekolah**: dicocokkan lewat NIK antara data penduduk (SIAK) dan data sekolah, ditampilkan per kelompok usia dan dusun.
+- Ini **proyeksi dari data yang ada**: kenaikan otomatis tidak bisa mengetahui siswa baru, pindahan, atau putus sekolah; kelas 1/7/10 baru lengkap setelah sekolah memperbarui data. Tetap perbarui data dari sekolah secara berkala.
+- Nama kolom CSV yang dikenali (NISN, NIK, nama, tanggal lahir, sekolah, NPSN, jenjang, kelas, tahun ajaran, status) adalah perkiraan; periksa laporan impor.
 
 ## Isi dashboard
 
@@ -69,7 +86,7 @@ Pasang di TV: buka di browser layar penuh (F11), mis. `chrome --kiosk tv.html`.
 ## Pasang di shared hosting
 
 Halaman ini 100% statis (HTML + JS + CSS), tidak perlu PHP atau database.
-1. Ekstrak zip di komputer, lalu unggah **seluruh isinya** (13 berkas + folder `lib/`) ke folder situs, misalnya `public_html/`. Jangan hanya mengunggah `index.html`.
+1. Ekstrak zip di komputer, lalu unggah **seluruh isinya** (semua berkas + folder `lib/`) ke folder situs, misalnya `public_html/`. Jangan hanya mengunggah `index.html`.
 2. Berkas harus berada di folder yang sama dengan `index.html`, dengan nama persis (huruf kecil). Jangan ada folder tambahan di antaranya (mis. `public_html/monitoring-kadis/monitoring-kadis/`).
 3. Buka alamatnya, mis. `https://situsanda.id/` atau `https://situsanda.id/tv.html`. Bila hosting menampilkan halaman bawaan ("Coming soon", `default.html`, `index.php`), hapus berkas bawaan itu atau buka `index.html` secara eksplisit.
 4. Peta dasar diambil langsung dari browser pengunjung ke `tile.openstreetmap.org`, jadi perangkat yang menampilkan harus punya internet. Bila tidak bisa, otomatis tampil peta skematik.

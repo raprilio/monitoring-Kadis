@@ -1,4 +1,4 @@
-(window.__ver = window.__ver || {})['tv.js'] = '2026-10-27.4';
+(window.__ver = window.__ver || {})['tv.js'] = '2026-10-28.1';
 /*
  * Tampilan TV: satu halaman, tanpa scroll, tanpa interaksi.
  * Parameter URL (opsional): ?days=7|30|90  ?theme=light|dark  ?refresh=<menit>  ?page=<detik pergantian peringatan/peta>
@@ -10,7 +10,7 @@
   'use strict';
   const {
     D, el, fmt, nfd, pct, sum, avg, slice, changePct, dShort, SEV_LABEL, statusIcon, pill, buildAlerts, blangkoStats,
-    W, wargaAll, ready, reload, periodOf, kpis, petaTitik, petaCounts, petaGeo,
+    W, wargaAll, ready, reload, periodOf, kpis, petaTitik, petaCounts, petaGeo, sekolahAgg,
   } = window.DashLib;
   const UI = window.DashUI;
 
@@ -121,7 +121,7 @@
       el('span', { class: 'v', text: fmt(u.value) }),
     ]));
     return panel('warga', '4', 'Data Kependudukan', sev, [
-      el('div', { class: 'siak-top' }, [UI.donut({ items, size: 168, thickness: 22, center: [fmt(a.n), W.isFiltered(filter) ? 'sesuai filter' : 'warga'], bigSize: 30, smallSize: 16, label: 'Komposisi status perkawinan' }), leg]),
+      el('div', { class: 'siak-top' }, [UI.donut({ items, size: 150, thickness: 20, center: [fmt(a.n), W.isFiltered(filter) ? 'sesuai filter' : 'warga'], bigSize: 30, smallSize: 16, label: 'Komposisi status perkawinan' }), leg]),
       el('div', { class: 'rings' }, [cov('KTP-el', a.ktp), cov('KIA', a.kia)]),
       el('div', { class: 'sub', text: 'Menurut kelompok usia' }),
       ...usia,
@@ -150,9 +150,9 @@
     const wLabel = wil === 'desa' ? 'Seluruh desa' : (petaGeo().wilayah.find((w) => w.key === wil) || { label: wil }).label;
     const panelEl = el('section', { class: 'panel map', id: 'peta' }, [
       el('div', { class: 'map-svg' }, mapApi.el),
-      el('div', { class: 'map-title' }, ['Peta Desa', el('span', { class: 'sub', text: `${wLabel}${mapApi.state.kunci ? ' (terkunci)' : ''} · ${watch.length} dari ${points.length} titik perlu perhatian` }), geo.contoh ? el('span', { class: 'map-demo', text: 'lokasi contoh' }) : null]),
+      el('div', { class: 'map-title' }, [`Peta ${(geo.nama || 'Desa').split(',')[0]}`, el('span', { class: 'sub', text: `${wLabel}${mapApi.state.kunci ? ' (terkunci)' : ''} · ${watch.length} dari ${points.length} titik perlu perhatian` }), geo.contoh ? el('span', { class: 'map-demo', text: 'lokasi contoh' }) : null]),
       info,
-      el('div', { class: 'map-leg' }, [UI.mapLegend(), el('div', { class: 'sub', style: 'margin-top:4px', text: 'Angka di peta = warga per dusun' })]),
+      el('div', { class: 'map-leg' }, [UI.mapLegend(), (petaGeo() || {}).adaDusun ? el('div', { class: 'sub', style: 'margin-top:4px', text: 'Angka di peta = warga per dusun' }) : null]),
     ]);
     // dipanggil setelah panel masuk ke halaman
     mounts.push(() => { mapApi.update(rows); show(); });
@@ -162,7 +162,7 @@
   /* ---------- peringatan ---------- */
   function pAlerts(alerts) {
     const nCrit = alerts.filter((a) => a.sev === 'critical').length, nWarn = alerts.length - nCrit;
-    const PER = 6, pages = Math.max(1, Math.ceil(alerts.length / PER));
+    const PER = 5, pages = Math.max(1, Math.ceil(alerts.length / PER));
     let page = 0;
     const list = el('div', { class: 'alert-list' }), pg = el('span', { class: 'pg', text: pages > 1 ? `1/${pages}` : '' });
     const show = () => list.replaceChildren(...(alerts.length
@@ -189,7 +189,7 @@
   /* ---------- panel bawah ---------- */
   function pMobile(sev) {
     const m = D.mobile, aktif = periodOf(m.penggunaAktifHarian, DAYS, 'avg'), aju = periodOf(m.pengajuanHarian, DAYS), sel = periodOf(m.selesaiHarian, DAYS);
-    return panel('mobile', '1', 'Aplikasi Warga', sev, [
+    return panel('mobile', '1', 'Aplikasi', sev, [
       areaChart(slice(D.tanggal, DAYS), aktif.cur.map((v) => Math.round(v)), 'Pengguna aktif per hari'),
       el('div', { class: 'sub' }, ['Aktif/hari ', el('b', { text: fmt(aktif.c) }), ' ', delta(aktif.chg)]),
       el('div', { class: 'sub' }, ['Pengajuan ', el('b', { text: fmt(aju.c) }), ' · selesai ', el('b', { text: pct((sel.c / (aju.c || 1)) * 100, 0) })]),
@@ -201,7 +201,7 @@
       const off = p.status !== 'online', low = !off && p.kertasPersen < 20;
       return el('div', { class: 'rowline', style: 'grid-template-columns: 22px 1fr auto' }, [
         statusIcon(off ? 'critical' : low ? 'warning' : 'ok'),
-        el('span', { class: 'n', text: p.nama.replace('Kiosk ', '') }),
+        el('span', { class: 'n', text: p.nama.replace('Kiosk ', '').replace('Kantor ', '') }),
         el('span', { class: 'v', text: off ? 'Offline' : low ? `Kertas ${p.kertasPersen}%` : `${fmt(p.transaksiHariIni)} trx` }),
       ]);
     });
@@ -212,12 +212,12 @@
     const parts = [{ name: 'Baik', v: t('baik'), color: 'var(--good)' }, { name: 'Perbaikan', v: t('perbaikan'), color: 'var(--warn)' }, { name: 'Rusak', v: t('rusak'), color: 'var(--crit)' }];
     const butuh = (c) => c.perbaikan + c.rusak;
     const top = [...cats].sort((a, b) => butuh(b) / (b.baik + butuh(b)) - butuh(a) / (a.baik + butuh(a))).slice(0, 3);
-    return panel('aset', '3', 'Aset Desa', sev, [
+    return panel('aset', '3', 'Aset', sev, [
       el('div', { class: 'bar', style: 'height:20px' }, parts.map((p) => el('div', { class: 'seg', style: `flex:${p.v} 1 0;background:${p.color}` }))),
       legend(parts.map((p) => ({ name: `${p.name} ${fmt(p.v)}`, color: p.color }))),
       el('div', { class: 'sub', text: 'Paling banyak perlu tindakan' }),
-      ...top.map((c) => el('div', { class: 'rowline', style: 'grid-template-columns: 130px 1fr 50px' }, [
-        el('span', { class: 'n', text: c.nama }),
+      ...top.map((c) => el('div', { class: 'rowline', style: 'grid-template-columns: 112px 1fr 54px; font-size:16px' }, [
+        el('span', { class: 'n', text: c.nama.replace('Fasilitas umum', 'Fasilitas').replace('Perangkat IT', 'Alat IT') }),
         el('div', { class: 'bar' }, [[c.baik, 'var(--good)'], [c.perbaikan, 'var(--warn)'], [c.rusak, 'var(--crit)']].map(([v, col]) => (v ? el('div', { class: 'seg', style: `flex:${v} 1 0;background:${col}` }) : null))),
         el('span', { class: 'v', text: `${butuh(c)}/${c.baik + butuh(c)}` }),
       ])),
@@ -229,7 +229,7 @@
       ...s.perangkat.map((n) => {
         const sv = n.disk >= 90 ? 'critical' : n.disk >= 75 ? 'warning' : 'ok';
         const fillc = sv === 'critical' ? 'var(--crit)' : sv === 'warning' ? 'var(--warn)' : 'var(--s1)';
-        return el('div', { class: 'rowline', style: 'grid-template-columns: 132px 1fr 92px' }, [
+        return el('div', { class: 'rowline', style: 'grid-template-columns: 112px 1fr 86px; font-size:17px' }, [
           el('span', { class: 'n', text: n.nama }),
           el('div', { class: 'meter', style: '--fillc:' + fillc }, el('i', { style: `width:${n.disk}%` })),
           el('span', { class: 'v' }, [sv !== 'ok' ? statusIcon(sv) : null, `Disk ${n.disk}%`]),
@@ -243,11 +243,26 @@
     const parts = [{ key: 'terpakai', color: 'var(--s1)' }, { key: 'rusak', color: 'var(--crit)' }, { key: 'sisa', color: 'var(--neutral-seg)' }];
     return panel('blangko', '6', 'Blangko', sev, [
       legend([{ name: 'Terpakai', color: 'var(--s1)' }, { name: 'Rusak', color: 'var(--crit)' }, { name: 'Sisa', color: 'var(--neutral-seg)' }]),
-      ...rows.map((r) => el('div', { class: 'rowline', style: 'grid-template-columns: 128px 1fr 64px; font-size:16px' }, [
+      ...rows.map((r) => el('div', { class: 'rowline', style: 'grid-template-columns: 116px 1fr 60px; font-size:16px' }, [
         el('span', { class: 'n', text: r.nama.replace('Kartu Identitas Anak (KIA)', 'KIA') }),
         el('div', { class: 'bar' }, parts.map((p) => (r[p.key] ? el('div', { class: 'seg', style: `flex:${r[p.key]} 1 0;background:${p.color}` }) : null))),
         r.rusakCetak > B.ambangRusakPersen ? el('span', { class: 'v' }, [statusIcon('warning'), pct(r.rusakCetak, 1)]) : el('span', { class: 'v', text: pct(r.rusakCetak, 1) }),
       ])),
+    ]);
+  }
+
+  function pSekolah(sev) {
+    const a = sekolahAgg(), mx = Math.max(...a.per.map((p) => p.aktif), 1);
+    const rows = a.per.map((p) => el('div', { class: 'rowline', style: 'grid-template-columns: 52px 1fr 52px' }, [
+      el('span', { class: 'n', text: p.label }),
+      el('div', { style: 'display:flex' }, el('div', { class: 'hfill', style: `width:${(p.aktif / mx) * 100}%;background:var(--s1)` })),
+      el('span', { class: 'v', text: fmt(p.aktif) }),
+    ]));
+    return panel('sekolah', '7', 'Sekolah', sev, [
+      ...rows,
+      el('div', { class: 'sub' }, ['Calon lulus ', el('b', { text: fmt(a.calonLulus) }), ' · lulus ', el('b', { text: fmt(a.lulusOtomatis) }), ' (otomatis)']),
+      a.belumLanjut ? el('div', { class: 'sub' }, [statusIcon('warning'), ' ', el('b', { text: fmt(a.belumLanjut) }), ' lulusan belum lanjut']) : null,
+      a.ats ? el('div', { class: 'sub' }, [a.ats.total ? statusIcon('warning') : null, ' ', el('b', { text: fmt(a.ats.total) }), ' anak belum bersekolah']) : null,
     ]);
   }
 
@@ -260,7 +275,7 @@
     document.getElementById('kpis').replaceChildren(...K.cards.map((c) => UI.kpiCard(c, { ringSize: 68 })));
     mounts.length = 0;
     document.getElementById('main').replaceChildren(safe('Data Kependudukan', () => pWarga(K.sevOf('warga'), a)), safe('Peta', () => renderMap(rows)), safe('Perlu perhatian', () => pAlerts(alerts)));
-    document.getElementById('bottom').replaceChildren(safe('Aplikasi Warga', () => pMobile(K.sevOf('mobile'))), safe('Kiosk', () => pKiosk(K.sevOf('kiosk'))), safe('Aset', () => pAset(K.sevOf('aset'))), safe('Server', () => pServer(K.sevOf('server'))), safe('Blangko', () => pBlangko(K.sevOf('blangko'))));
+    document.getElementById('bottom').replaceChildren(safe('Aplikasi Warga', () => pMobile(K.sevOf('mobile'))), safe('Kiosk', () => pKiosk(K.sevOf('kiosk'))), safe('Aset', () => pAset(K.sevOf('aset'))), safe('Server', () => pServer(K.sevOf('server'))), safe('Blangko', () => pBlangko(K.sevOf('blangko'))), safe('Sekolah', () => pSekolah(K.sevOf('sekolah'))));
     mounts.forEach((f) => f());
   }
 

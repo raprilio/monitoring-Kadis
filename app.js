@@ -1,4 +1,4 @@
-(window.__ver = window.__ver || {})['app.js'] = '2026-10-27.4';
+(window.__ver = window.__ver || {})['app.js'] = '2026-10-28.1';
 (() => {
   'use strict';
 
@@ -6,7 +6,7 @@
   const {
     nfd, fmt, fmt1, pct, compact, rupiah, sum, avg, clamp, slice, changePct, dShort, dLong,
     el, SEV_LABEL, statusIcon, pill, blangkoStats, buildAlerts,
-    W, wargaAll, ready, kpis, petaTitik, petaCounts, petaGeo,
+    W, wargaAll, ready, kpis, petaTitik, petaCounts, petaGeo, SK, sekolahAll, sekolahAgg,
   } = window.DashLib;
   const UI = window.DashUI;
 
@@ -684,13 +684,13 @@
       use.addEventListener('click', () => { D.warga.records = records; D.meta.sumberPenduduk = { jenis: 'csv', nama: file.name, jumlah: records.length }; Object.assign(wf.f, W.emptyFilter()); wf.page = 0; rerender(); });
       cancel.addEventListener('click', () => { report.hidden = true; });
       const alasan = Object.entries(r.alasan).map(([k, v]) => `${fmt(v)} ${k}`).join(', ');
-      report.replaceChildren(
+      report.replaceChildren(...[
         el('p', {}, [el('b', { text: `${fmt(r.baris)} baris dibaca: ${fmt(r.diimpor)} diimpor, ${fmt(r.dilewati)} dilewati` }), alasan ? ` (${alasan})` : '', '.']),
         el('p', { class: 't-sub', text: `Kolom dikenali: ${r.dikenali.join(', ')}.` }),
         r.hilang.length ? el('p', { class: 't-sub', text: `Kolom tidak ada di file: ${r.hilang.join(', ')}. Bagian yang bergantung pada kolom ini akan kosong atau tidak dihitung.` }) : null,
         r.tidakDikenali.length ? el('p', { class: 't-sub', text: `Kolom tidak dipakai: ${r.tidakDikenali.join(', ')}.` }) : null,
         el('div', { class: 'row-btns' }, [use, cancel])
-      );
+      ].filter(Boolean));
     });
     return el('article', { class: 'card sourcebar' }, [
       el('div', { class: 'src-line' }, [el('span', {}, [el('b', { text: 'Sumber data warga: ' }), src]), el('span', { class: 'row-btns' }, [btn, input])]),
@@ -719,6 +719,89 @@
     const sec = section('warga', '4', 'Data Kependudukan (SIAK)', insight, sourceBar(() => { render(); }), filterCard(update), count, results);
     update();
     return sec;
+  }
+
+
+  /* ============================== pendidikan (data sekolah) ============================== */
+  const skJ = { SD: 'SD (kelas 1–6)', SMP: 'SMP (kelas 7–9)', SMK: 'SMK (kelas 10–12)', SMA: 'SMA (kelas 10–12)' };
+
+  function sekolahSource(rerender) {
+    const m = D.meta.sumberSekolah, input = el('input', { type: 'file', accept: '.csv,text/csv,text/plain', hidden: true });
+    const report = el('div', { class: 'import-report', hidden: true });
+    const dt = D.sekolah && D.sekolah.diperbarui ? new Date(D.sekolah.diperbarui) : null;
+    const src = m.jenis === 'api' ? `API ${m.url} · ${fmt(m.jumlah)} siswa` : m.jenis === 'csv' ? `File ${m.nama} · ${fmt(m.jumlah)} siswa (hanya ada di browser ini, tidak diunggah)` : 'Data contoh (sintetis)';
+    const btn = el('button', { type: 'button', class: 'btn', text: 'Impor CSV data sekolah…' });
+    btn.addEventListener('click', () => input.click());
+    input.addEventListener('change', async () => {
+      const file = input.files[0];
+      if (!file) return;
+      const { siswa, report: r } = SK.importCSV(await file.text(), W.parseCSV);
+      input.value = '';
+      report.hidden = false;
+      if (r.error) { report.replaceChildren(el('p', { class: 'err', text: 'Gagal membaca file: ' + r.error }), el('p', { class: 't-sub', text: `Kolom di file: ${(r.tidakDikenali || []).join(', ') || '(tidak ada)'}` })); return; }
+      const use = el('button', { type: 'button', class: 'btn', text: `Pakai ${fmt(siswa.length)} data ini` }), cancel = el('button', { type: 'button', class: 'btn', text: 'Batal' });
+      use.addEventListener('click', () => { D.sekolah = { diperbarui: new Date().toISOString(), sekolah: [], siswa }; D.meta.sumberSekolah = { jenis: 'csv', nama: file.name, jumlah: siswa.length }; rerender(); });
+      cancel.addEventListener('click', () => { report.hidden = true; });
+      const alasan = Object.entries(r.alasan).map(([k, v]) => `${fmt(v)} ${k}`).join(', ');
+      report.replaceChildren(...[
+        el('p', {}, [el('b', { text: `${fmt(r.baris)} baris dibaca: ${fmt(r.diimpor)} diimpor, ${fmt(r.dilewati)} dilewati` }), alasan ? ` (${alasan})` : '', '.']),
+        el('p', { class: 't-sub', text: `Kolom dikenali: ${r.dikenali.join(', ')}.` }),
+        r.hilang.length ? el('p', { class: 't-sub', text: `Kolom tidak ada di file: ${r.hilang.join(', ')}.` }) : null,
+        r.catatan ? el('p', { class: 't-sub', text: r.catatan }) : null,
+        el('div', { class: 'row-btns' }, [use, cancel])
+      ].filter(Boolean));
+    });
+    return el('article', { class: 'card sourcebar' }, [
+      el('div', { class: 'src-line' }, [el('span', {}, [el('b', { text: 'Sumber data sekolah: ' }), src]), el('span', { class: 'row-btns' }, [btn, input])]),
+      m.galat ? el('p', { class: 'err', text: m.galat }) : null,
+      el('p', { class: 't-sub', text: `Data terakhir diperbarui ${dt ? dt.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}. Kenaikan kelas dan kelulusan dihitung OTOMATIS setiap tahun ajaran baru (mulai 1 Juli): siswa aktif naik kelas, yang melewati kelas akhir menjadi lulus, dan status "belum melanjutkan" hilang sendiri begitu data sekolah yang baru memuat siswa itu di jenjang berikutnya. Ini proyeksi dari data yang ada; tetap perbarui data dari sekolah secara berkala.` }),
+      report,
+    ]);
+  }
+
+  function secSekolah() {
+    const a = sekolahAgg(), sis = sekolahAll();
+    const tot = a.total;
+    if (!sis.length) return section('sekolah', '7', 'Pendidikan (Data Sekolah)', 'Belum ada data sekolah.', sekolahSource(() => render()));
+    const per = a.per;
+    const insight = `${fmt(tot)} anak bersekolah pada tahun ajaran ${a.taSekarang} (${per.map((p) => `${p.label} ${fmt(p.aktif)}`).join(', ')}). ${fmt(a.naikOtomatis)} naik kelas otomatis, ${fmt(a.lulusOtomatis)} lulus otomatis${a.belumLanjut ? `, ${fmt(a.belumLanjut)} lulusan belum tercatat melanjutkan` : ''}.`;
+    const tiles5 = per.map((p) => tile({ label: `Siswa ${p.label}`, value: fmt(p.aktif), sub: `${fmt(p.calonLulus)} calon lulus tahun ini` }));
+    tiles5.push(tile({ label: 'Lulus otomatis', value: fmt(a.lulusOtomatis), sev: a.belumLanjut ? 'warning' : null, sub: a.belumLanjut ? `${fmt(a.belumLanjut)} belum tercatat melanjutkan` : 'semua sudah tercatat melanjutkan' }));
+    tiles5.push(a.ats
+      ? tile({ label: 'Anak 7–18 th belum tercatat sekolah', value: fmt(a.ats.total), sev: a.ats.total ? (a.ats.total / (a.ats.dari || 1) > 0.25 ? 'critical' : 'warning') : null, sub: `dari ${fmt(a.ats.dari)} anak usia sekolah` })
+      : tile({ label: 'Anak belum tercatat sekolah', value: '—', sub: a.atsCatatan || 'butuh kolom NIK pada data sekolah dan data penduduk' }));
+
+    const jenjangItems = per.map((p) => ({ label: p.label, value: p.aktif, hint: `${fmt(p.calonLulus)} calon lulus` }));
+    const kelasCards = per.map((p) => ({ title: skJ[p.key] || p.label, items: p.kelas.map((k) => ({ label: `Kelas ${k.kelas}`, value: k.value })) }));
+    const statusRows = per.map((p) => [p.label, fmt(p.aktif), fmt(p.naikOtomatis), fmt(p.calonLulus), fmt(p.lulusOtomatis), p.belumLanjut ? pill('warning', fmt(p.belumLanjut)) : '0', fmt(p.pindah + p.putus)]);
+
+    return section('sekolah', '7', 'Pendidikan (Data Sekolah)', insight,
+      sekolahSource(() => render()),
+      tiles(...tiles5),
+      grid2(
+        card({ title: 'Siswa aktif per jenjang', sub: `Tahun ajaran ${a.taSekarang}`, build: (h) => hbarChart(h, { items: jenjangItems }), table: [['Jenjang', 'Siswa aktif', 'Calon lulus'], per.map((p) => [p.label, fmt(p.aktif), fmt(p.calonLulus)]), { numCols: [1, 2] }] }),
+        card({
+          title: 'Siswa per kelas', sub: 'Setelah kenaikan kelas otomatis. Kelas 1/7/10 baru terisi penuh setelah data pendaftar baru dari sekolah masuk (kenaikan otomatis tidak bisa menebak siswa baru).',
+          build: (h) => h.append(...kelasCards.map((c) => { const box = el('div', { style: 'margin-bottom:12px' }, [el('div', { class: 't-sub', style: 'margin-bottom:4px;font-weight:600', text: c.title })]); const inner = el('div', {}); hbarChart(inner, { items: c.items }); box.append(inner); return box; })),
+          table: [['Jenjang', 'Kelas', 'Siswa'], kelasCards.flatMap((c, i) => c.items.map((k) => [per[i].label, k.label, fmt(k.value)])), { numCols: [2] }],
+        }),
+      ),
+      grid2(
+        card({
+          title: 'Kenaikan kelas & kelulusan otomatis', sub: 'Dihitung dari tahun ajaran pada data dan tanggal hari ini',
+          tableOnly: [['Jenjang', 'Aktif', 'Naik kelas otomatis', 'Calon lulus', 'Lulus otomatis', 'Belum melanjutkan', 'Pindah/putus'], statusRows, { tall: true, numCols: [1, 2, 3, 4, 5, 6] }],
+        }),
+        card({
+          title: 'Anak usia sekolah belum tercatat bersekolah', sub: a.ats ? `${fmt(a.ats.total)} dari ${fmt(a.ats.dari)} anak usia 7–18 tahun (cocokkan NIK data penduduk dengan data sekolah)` : (a.atsCatatan || 'Tidak bisa dihitung: butuh NIK pada data sekolah'),
+          build: (h) => { if (!a.ats) return h.append(el('p', { class: 't-sub', text: 'Impor data sekolah yang memuat kolom NIK agar anak yang belum bersekolah terdeteksi.' })); const x = el('div', {}); hbarChart(x, { items: a.ats.band }); const y = el('div', { style: 'margin-top:14px' }, el('div', { class: 't-sub', style: 'font-weight:600;margin-bottom:4px', text: 'Menurut dusun' })); const yy = el('div', {}); hbarChart(yy, { items: a.ats.dusun }); y.append(yy); h.append(x, y); },
+          table: a.ats ? [['Kelompok', 'Anak'], [...a.ats.band, ...a.ats.dusun].map((x) => [x.label, fmt(x.value)]), { numCols: [1] }] : null,
+        }),
+      ),
+      card({
+        title: 'Daftar sekolah', sub: 'Siswa aktif per sekolah',
+        tableOnly: [['Sekolah', 'Jenjang', 'Siswa aktif', 'Calon lulus', 'Lulusan (otomatis/tercatat)'], a.sekolah.map((s) => [s.nama, s.jenjang, fmt(s.aktif), fmt(s.calonLulus), fmt(s.lulus)]), { tall: true, numCols: [2, 3, 4] }],
+      })
+    );
   }
 
   const sevByUsage = (v, warn, crit) => (v >= crit ? 'critical' : v >= warn ? 'warning' : 'ok');
@@ -846,6 +929,10 @@
     },
   });
 
+  function aplikasikanPengaturan() { mapApi.reload(); render(); }
+  const bukaPengaturan = el('button', { type: 'button', class: 'btn', text: 'Atur wilayah' });
+  bukaPengaturan.addEventListener('click', () => window.PengaturanUI && window.PengaturanUI.buka({ onApplied: aplikasikanPengaturan }));
+
   function overview(alerts, K) {
     const h = K.hero, chg = h.chg;
     const dailySel = periodStats(D.mobile.selesaiHarian).cur, dailyKio = periodStats(D.kiosk.transaksiHarian).cur;
@@ -871,10 +958,10 @@
     const mapHost = el('div', { class: 'mapframe' }, mapApi.el);
     const nWatch = points.filter((p) => p.sev !== 'ok').length, geo = (D.peta && D.peta.geo) || {};
     const mapCard = el('article', { class: 'card mapcard' }, [
-      el('div', { class: 'card-head', style: 'margin-bottom:0' }, [el('div', {}, [el('h3', { text: 'Peta desa' }), el('p', { text: `${nWatch} dari ${points.length} titik perlu perhatian · angka = jumlah warga per dusun` })])]),
+      el('div', { class: 'card-head', style: 'margin-bottom:0' }, [el('div', {}, [el('h3', { text: geo.nama ? `Peta ${geo.nama}` : 'Peta desa' }), el('p', { text: `${nWatch} dari ${points.length} titik perlu perhatian${(petaGeo() || {}).adaDusun ? ' · angka = jumlah warga per dusun' : ''}` })]), bukaPengaturan]),
       mapHost, UI.mapLegend(),
       el('p', { class: 'note', text: 'Pilih wilayah (seluruh desa atau satu dusun), lalu tekan Kunci untuk membekukan tampilan. Tanpa kunci, peta bebas digeser tetapi tidak bisa keluar dari batas desa.' }),
-      geo.contoh ? el('p', { class: 'note warn', text: 'Lokasi peta ini hanya contoh. Isi koordinat desa Anda di data.js (peta.geo.batas) agar sesuai wilayah sebenarnya.' }) : null,
+      geo.contoh ? el('p', { class: 'note warn', text: 'Lokasi peta ini hanya contoh. Tekan "Atur wilayah" untuk memilih wilayah desa Anda (otomatis atau manual).' }) : null,
     ]);
 
     const nCrit = alerts.filter((a) => a.sev === 'critical').length;
@@ -902,7 +989,7 @@
   const app = document.getElementById('app');
   const SECTIONS = [
     ['mobile', 'Aplikasi Warga', 'phone'], ['kiosk', 'Kiosk', 'kiosk'], ['aset', 'Aset Desa', 'box'],
-    ['warga', 'Kependudukan', 'users'], ['server', 'Server', 'server'], ['blangko', 'Blangko', 'doc'],
+    ['warga', 'Kependudukan', 'users'], ['server', 'Server', 'server'], ['blangko', 'Blangko', 'doc'], ['sekolah', 'Pendidikan', 'school'],
   ];
   let spy = null;
   function renderNav(K) {
@@ -929,7 +1016,7 @@
         return el('section', { class: 'sec' }, el('article', { class: 'card' }, `Bagian "${nama}" gagal ditampilkan: ${e.message}. Biasanya karena berkas tidak sama versinya; unggah ulang semua berkas dan tekan Ctrl+F5.`));
       }
     };
-    app.replaceChildren(safe('Ringkasan', () => overview(alerts, K)), safe('Aplikasi Warga', secMobile), safe('Kiosk', secKiosk), safe('Aset', secAset), safe('Data Kependudukan', secWarga), safe('Server', secServer), safe('Blangko', secBlangko));
+    app.replaceChildren(safe('Ringkasan', () => overview(alerts, K)), safe('Aplikasi Warga', secMobile), safe('Kiosk', secKiosk), safe('Aset', secAset), safe('Data Kependudukan', secWarga), safe('Server', secServer), safe('Blangko', secBlangko), safe('Pendidikan', secSekolah));
     mapApi.update(wargaAll());
     renderNav(K);
     const sp = D.meta.sumberPenduduk;
@@ -937,6 +1024,8 @@
   }
 
   function setup() {
+    const sb = document.getElementById('set-btn');
+    if (sb) sb.addEventListener('click', () => window.PengaturanUI ? window.PengaturanUI.buka({ onApplied: aplikasikanPengaturan }) : alert('Berkas pengaturan-ui.js belum terunggah.'));
     document.getElementById('desa-name').textContent = `${D.meta.desa} · ${D.meta.kecamatan} · ${D.meta.kabupaten}`;
     if (D.meta.dataContoh) {
       const bd = document.getElementById('demo-badge');

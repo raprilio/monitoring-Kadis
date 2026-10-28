@@ -1,4 +1,4 @@
-(window.__ver = window.__ver || {})['map.js'] = '2026-10-27.4';
+(window.__ver = window.__ver || {})['map.js'] = '2026-10-28.1';
 /*
  * Peta nyata (OpenStreetMap + Leaflet) yang bisa DIKUNCI ke wilayah tertentu.
  *  - Wilayah: seluruh desa atau satu dusun (tampilan langsung menyesuaikan).
@@ -50,6 +50,7 @@ window.DashMap = (() => {
 
     /* ---------- peta nyata ---------- */
     const region = () => data.wilayah.find((w) => w.key === st.wilayah) || data.wilayah[0];
+    const fixWilayah = () => { if (!data.wilayah.some((w) => w.key === st.wilayah)) st.wilayah = 'desa'; };
     const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
     function initLeaflet() {
@@ -121,9 +122,16 @@ window.DashMap = (() => {
       if (ctlEl && ctlEl._paint) ctlEl._paint();
     }
 
+    let noteCtl = null;
     function drawLayers() {
       zoneLayer.clearLayers();
       markerLayer.clearLayers();
+      if (noteCtl) { noteCtl.remove(); noteCtl = null; }
+      if (data.tanpaKoordinat > 0) {
+        const C = L.Control.extend({ options: { position: 'bottomright' }, onAdd() { return el('div', { class: 'gm-miss', text: `${data.tanpaKoordinat} titik belum diberi koordinat, belum ditampilkan (Pengaturan → Titik lokasi).` }); } });
+        noteCtl = new C().addTo(map);
+      }
+      if (data.desaPoligon) L.polygon(data.desaPoligon, { color: cssVar('--accent') || '#ff8a1f', weight: 3, opacity: 0.95, fill: false, interactive: false, className: 'gm-desa' }).addTo(zoneLayer);
       const s1 = cssVar('--s1') || '#2a78d6';
       const mx = Math.max(1, ...data.dusun.map((d) => counts.get(d.nama) || 0));
       data.dusun.forEach((d) => {
@@ -156,6 +164,7 @@ window.DashMap = (() => {
       data = petaGeo();
       if (!data) { host.replaceChildren(el('div', { class: 'gm-note', style: 'position:static', text: 'Data peta tidak lengkap: data.js kemungkinan versi lama. Unggah ulang data.js dari zip terbaru.' })); return; }
       counts = petaCounts(st.rows);
+      fixWilayah();
       if (st.mode === 'skema' || !useLeaflet()) {
         if (st.mode !== 'skema') { st.mode = 'skema'; st.note = useLeaflet() ? st.note : ''; }
         drawSchematic();
@@ -183,6 +192,8 @@ window.DashMap = (() => {
         opts.onChange && opts.onChange({ wilayah: st.wilayah, kunci: st.kunci });
       },
       restyle() { if (map) drawLayers(); },
+      /** Bangun ulang peta (mis. setelah pengaturan wilayah diubah). */
+      reload() { clearTimeout(waitTimer); if (ro) ro.disconnect(); if (map) { map.remove(); map = null; } host.replaceChildren(); host.className = 'geomap'; st.mode = useLeaflet() ? 'peta' : 'skema'; st.note = ''; render(); },
       destroy() { clearTimeout(waitTimer); if (ro) ro.disconnect(); if (map) { map.remove(); map = null; } },
     };
     return api;
