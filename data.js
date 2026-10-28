@@ -1,4 +1,4 @@
-(window.__ver = window.__ver || {})['data.js'] = '2026-10-28.1';
+(window.__ver = window.__ver || {})['data.js'] = '2026-10-28.2';
 /*
  * DATA CONTOH (dummy) — bukan data desa yang sebenarnya.
  *
@@ -211,6 +211,48 @@
   }
   const dataSekolah = buatSekolah(warga);
 
+  /* ---------- keuangan desa (APBDes) contoh ---------- */
+  const keuangan = {
+    tahun: today.getFullYear(),
+    diperbarui: new Date(today.getTime() - 3 * 86400000).toISOString(),
+    // ambang peringatan (nilai awal; sesuaikan): realisasi tertinggal dari porsi waktu berjalan sebanyak ... poin persen
+    ambang: { tertinggalWaspada: 15, tertinggalKritis: 30 },
+    pendapatan: [
+      { uraian: 'Pendapatan Asli Desa', anggaran: 85000000, realisasi: 61000000 },
+      { uraian: 'Dana Desa (DD)', anggaran: 1150000000, realisasi: 920000000 },
+      { uraian: 'Bagi Hasil Pajak & Retribusi', anggaran: 42000000, realisasi: 30000000 },
+      { uraian: 'Alokasi Dana Desa (ADD)', anggaran: 640000000, realisasi: 480000000 },
+      { uraian: 'Bantuan Keuangan Kab./Provinsi', anggaran: 250000000, realisasi: 100000000 },
+    ],
+    // tanpaTarget = dana cadangan yang wajar belum terpakai (tidak dinilai tertinggal)
+    belanja: [
+      { uraian: 'Penyelenggaraan Pemerintahan Desa', anggaran: 780000000, realisasi: 690000000 },
+      { uraian: 'Pelaksanaan Pembangunan Desa', anggaran: 920000000, realisasi: 520000000 },
+      { uraian: 'Pembinaan Kemasyarakatan Desa', anggaran: 140000000, realisasi: 98000000 },
+      { uraian: 'Pemberdayaan Masyarakat Desa', anggaran: 255000000, realisasi: 120000000 },
+      { uraian: 'Penanggulangan Bencana, Darurat & Mendesak', anggaran: 72000000, realisasi: 0, tanpaTarget: true },
+    ],
+  };
+
+  /* ---------- bantuan sosial contoh, diturunkan dari kepala keluarga pada data warga ---------- */
+  function buatBansos(wg) {
+    const program = [
+      { id: 'blt', nama: 'BLT Dana Desa', sumber: 'Dana Desa', kuota: 120, nilai: 300000, periode: 'per bulan' },
+      { id: 'pkh', nama: 'PKH', sumber: 'Kemensos', kuota: 90, nilai: 750000, periode: 'per tahap' },
+      { id: 'bpnt', nama: 'Sembako (BPNT)', sumber: 'Kemensos', kuota: 140, nilai: 200000, periode: 'per bulan' },
+    ];
+    const kk = wg.filter((r) => r.hubungan === 'KEPALA KELUARGA' && r.noKK);
+    const acak = [...kk].sort(() => rnd() - 0.5);
+    const penerima = [];
+    const isi = (p, n, mulai) => acak.slice(mulai, mulai + n).forEach((r) => penerima.push({ program: p.id, nik: r.nik, noKK: r.noKK, nama: r.nama, status: rnd() < 0.92 ? 'tersalur' : rnd() < 0.5 ? 'belum' : 'ditunda' }));
+    isi(program[0], 112, 0); isi(program[1], 84, 20); isi(program[2], 138, 40);
+    // masalah data yang sengaja disisipkan: NIK tak ada di data penduduk, dan penerima ganda
+    for (let i = 0; i < 3; i++) penerima.push({ program: 'blt', nik: '99999900000' + String(90000 + i), noKK: '', nama: 'Penerima ' + (i + 1), status: 'tersalur' });
+    penerima.push({ ...penerima[2] }, { ...penerima[3] });
+    return { diperbarui: new Date(today.getTime() - 5 * 86400000).toISOString(), tahun: today.getFullYear(), program, penerima };
+  }
+  const bansos = buatBansos(warga);
+
   window.DASHBOARD_DATA = {
     meta: {
       desa: 'Desa Contoh',
@@ -321,6 +363,10 @@
         { nama: 'Proyektor balai', kategori: 'Perangkat IT', kondisi: 'rusak', lokasi: 'Balai Desa', catatan: 'Lampu mati' },
       ],
     },
+
+    // 8. Keuangan desa (APBDes) dan 9. Bantuan sosial: bentuk data di keuangan.js dan bansos.js. Data di bawah SINTETIS.
+    keuangan,
+    bansos,
 
     // 7. Data sekolah (SD/SMP/SMK): bentuk data ada di sekolah.js. Data di bawah SINTETIS; ganti lewat impor CSV atau DASHBOARD_CONFIG.apiSekolah.
     sekolah: dataSekolah,

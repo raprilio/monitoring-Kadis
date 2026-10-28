@@ -1,4 +1,4 @@
-(window.__ver = window.__ver || {})['tv.js'] = '2026-10-28.1';
+(window.__ver = window.__ver || {})['tv.js'] = '2026-10-28.2';
 /*
  * Tampilan TV: satu halaman, tanpa scroll, tanpa interaksi.
  * Parameter URL (opsional): ?days=7|30|90  ?theme=light|dark  ?refresh=<menit>  ?page=<detik pergantian peringatan/peta>
@@ -10,7 +10,7 @@
   'use strict';
   const {
     D, el, fmt, nfd, pct, sum, avg, slice, changePct, dShort, SEV_LABEL, statusIcon, pill, buildAlerts, blangkoStats,
-    W, wargaAll, ready, reload, periodOf, kpis, petaTitik, petaCounts, petaGeo, sekolahAgg,
+    W, wargaAll, ready, reload, periodOf, kpis, petaTitik, petaCounts, petaGeo, sekolahAgg, keuanganRingkas, bansosAgg, rupiah,
   } = window.DashLib;
   const UI = window.DashUI;
 
@@ -18,6 +18,11 @@
   const DAYS = [7, 30, 90].includes(Number(q.get('days'))) ? Number(q.get('days')) : 30;
   const REFRESH_MIN = Number(q.get('refresh')) || 5;
   const PAGE_SEC = Number(q.get('page')) || 8;
+  // TV bergantian antara layar 1 (operasional) dan layar 2 (keuangan & bantuan sosial). ?layar=1|2 mengunci; ?gantian=<detik> (0 = tidak berganti)
+  const CFG = window.DASHBOARD_CONFIG || {};
+  const LAYAR_TETAP = [1, 2].includes(Number(q.get('layar'))) ? Number(q.get('layar')) : 0;
+  const GANTIAN = LAYAR_TETAP ? 0 : (q.get('gantian') !== null ? Number(q.get('gantian')) : Number(CFG.tvGantian ?? 25)) || 0;
+  let screen = LAYAR_TETAP || 1;
   const filter = W.filterFromParams(q); // filter data warga; tombol di header mengganti status
   if (['light', 'dark'].includes(q.get('theme'))) document.documentElement.dataset.theme = q.get('theme');
 
@@ -160,7 +165,7 @@
   }
 
   /* ---------- peringatan ---------- */
-  function pAlerts(alerts) {
+  function pAlerts(alerts, judul = 'Perlu perhatian') {
     const nCrit = alerts.filter((a) => a.sev === 'critical').length, nWarn = alerts.length - nCrit;
     const PER = 5, pages = Math.max(1, Math.ceil(alerts.length / PER));
     let page = 0;
@@ -180,7 +185,7 @@
       }, PAGE_SEC * 1000);
     }
     return el('section', { class: 'panel', id: 'alerts' }, [
-      el('div', { class: 'ph' }, [el('h2', { text: 'Perlu perhatian' }), pg]),
+      el('div', { class: 'ph' }, [el('h2', { text: judul }), pg]),
       el('div', { class: 'sub' }, [el('span', { class: 'pill' }, [statusIcon('critical'), el('b', { text: `${nCrit} kritis` })]), '   ', el('span', { class: 'pill' }, [statusIcon('warning'), el('b', { text: `${nWarn} waspada` })])]),
       el('div', { class: 'body' }, list),
     ]);
@@ -266,17 +271,85 @@
     ]);
   }
 
-  /* ---------- render ---------- */
-  function render() {
-    const alerts = buildAlerts();
-    const K = kpis(DAYS, alerts);
+  /* ---------- layar 2: keuangan desa & bantuan sosial ---------- */
+  const singkat = (n) => (Math.abs(n) >= 1e9 ? `${nfd(1).format(n / 1e9)} M` : Math.abs(n) >= 1e6 ? `${nfd(0).format(n / 1e6)} jt` : fmt(n));
+  const sevMax = (list) => list.reduce((a, b) => ({ critical: 2, warning: 1, ok: 0 }[b] > { critical: 2, warning: 1, ok: 0 }[a] ? b : a), 'ok');
+
+  function kpiLayar2(kr, ba) {
+    const B = kr.belanja.total, P = kr.pendapatan.total, sevB = sevMax(kr.belanja.rows.map((r) => r.sev)), sevP = sevMax(kr.pendapatan.rows.map((r) => r.sev));
+    const adaKuota = ba.kuota > 0;
+    const sevBa = ba.ganda ? 'critical' : (ba.tidakCocok || 0) || (adaKuota && ba.terdata / ba.kuota < 0.9) ? 'warning' : 'ok';
+    return [
+      { id: 'keuangan', icon: 'coin', label: 'Anggaran belanja', value: singkat(B.anggaran), sub: `sisa ${singkat(B.sisa)}`, ring: { value: B.persen, text: fmt(B.persen) + '%', sev: sevB }, sev: sevB },
+      { id: 'keuangan', icon: 'coin', label: 'Belanja terealisasi', value: pct(B.persen, 0), sub: `waktu berjalan ${pct(kr.waktu, 0)}`, ring: { value: B.persen, text: fmt(B.persen) + '%', sev: sevB }, sev: sevB },
+      { id: 'keuangan', icon: 'coin', label: 'Pendapatan terealisasi', value: pct(P.persen, 0), sub: `${singkat(P.realisasi)} dari ${singkat(P.anggaran)}`, ring: { value: P.persen, text: fmt(P.persen) + '%', sev: sevP }, sev: sevP },
+      { id: 'bansos', icon: 'heart', label: 'Penerima bantuan', value: fmt(ba.unikSemua), sub: `${ba.per.length} program`, ring: { value: adaKuota ? (ba.terdata / ba.kuota) * 100 : 0, text: adaKuota ? fmt((ba.terdata / ba.kuota) * 100) + '%' : '—', sev: 'ok' }, sev: sevBa },
+      { id: 'bansos', icon: 'heart', label: 'Sudah menerima', value: pct(ba.terdata ? (ba.tersalur / ba.terdata) * 100 : 0, 0), sub: `${fmt(ba.belum + ba.ditunda)} belum/ditunda`, ring: { value: ba.terdata ? (ba.tersalur / ba.terdata) * 100 : 0, text: fmt(ba.terdata ? (ba.tersalur / ba.terdata) * 100 : 0) + '%', sev: ba.belum + ba.ditunda ? 'warning' : 'ok' }, sev: ba.belum + ba.ditunda ? 'warning' : 'ok' },
+      { id: 'bansos', icon: 'heart', label: 'Perlu diperiksa', value: fmt((ba.tidakCocok || 0) + ba.ganda), sub: ba.catatan ? 'NIK belum bisa dicek' : 'NIK tak cocok/ganda', ring: { value: 100, text: ((ba.tidakCocok || 0) + ba.ganda) ? '!' : '✓', sev: (ba.tidakCocok || 0) + ba.ganda ? 'warning' : 'ok' }, sev: (ba.tidakCocok || 0) + ba.ganda ? 'warning' : 'ok' },
+    ];
+  }
+  function progRow(label, valueText, value, mark, sev, pl) {
+    const fillc = sev === 'critical' ? 'var(--crit)' : sev === 'warning' ? 'var(--warn)' : 'var(--s1)';
+    return el('div', { class: 'prow', style: pl ? `--pl:${pl}` : null }, [
+      el('span', { class: 'n', text: label, title: label }),
+      el('div', { class: 'ptrack', style: '--fillc:' + fillc }, [el('i', { style: `width:${Math.max(0, Math.min(100, value))}%` }), mark != null ? el('b', { class: 'pmark', style: `left:${Math.max(0, Math.min(100, mark))}%` }) : null]),
+      el('span', { class: 'v' }, [sev !== 'ok' ? statusIcon(sev) : null, valueText]),
+    ]);
+  }
+  function pKeuangan(kr) {
+    const sev = sevMax([...kr.belanja.rows, ...kr.pendapatan.rows].map((r) => r.sev));
+    const blok = (judul, rows) => [el('div', { class: 'sub', style: 'font-weight:600' }, judul), ...rows.map((r) => progRow(r.uraian.replace('Penanggulangan Bencana, Darurat & Mendesak', 'Bencana, Darurat & Mendesak').replace('Bantuan Keuangan Kab./Provinsi', 'Bantuan Kab./Provinsi').replace(' Desa', ''), pct(r.persen, 0), r.persen, r.tanpaTarget ? null : kr.waktu, r.sev))];
+    return panel('keuangan', '8', `Keuangan Desa ${kr.tahun}`, sev, [
+      ...blok('Belanja menurut bidang', kr.belanja.rows), ...blok('Pendapatan menurut sumber', kr.pendapatan.rows),
+      el('div', { class: 'sub' }, [el('span', { class: 'pmark-key' }), ` garis = porsi waktu berjalan (${pct(kr.waktu, 0)})`]),
+    ]);
+  }
+  function pBansos(ba) {
+    const sev = ba.ganda ? 'critical' : (ba.tidakCocok || 0) || ba.per.some((p) => p.persenKuota != null && p.persenKuota < 90) ? 'warning' : 'ok';
+    const prog = ba.per.flatMap((p) => [
+      el('div', { class: 'sub', style: 'font-weight:600' }, [p.nama, el('span', { style: 'font-weight:400', text: p.kuota == null ? '' : ` · kuota ${fmt(p.kuota)}` })]),
+      progRow('Terdata', `${fmt(p.terdata)}`, p.persenKuota == null ? 100 : p.persenKuota, null, p.persenKuota != null && p.persenKuota < 90 ? 'warning' : 'ok', '110px'),
+      progRow('Menerima', `${fmt(p.tersalur)}`, p.persenSalur, null, p.persenSalur < 85 ? 'warning' : 'ok', '110px'),
+    ]);
+    const mx = Math.max(...ba.perDusun.map((d) => d.value), 1);
+    const dusun = ba.bisaCocok ? ba.perDusun.slice(0, 4).map((d) => el('div', { class: 'rowline', style: 'grid-template-columns: 220px 1fr 60px' }, [el('span', { class: 'n', text: d.label }), el('div', { style: 'display:flex' }, el('div', { class: 'hfill', style: `width:${(d.value / mx) * 100}%;background:var(--s1)` })), el('span', { class: 'v', text: fmt(d.value) })])) : [];
+    return panel('bansos', '9', 'Bantuan Sosial', sev, [...prog, ...(dusun.length ? [el('div', { class: 'sub', style: 'font-weight:600' }, 'Penerimaan per dusun'), ...dusun] : [])]);
+  }
+  function renderScreen2(alerts) {
+    const kr = keuanganRingkas(), ba = bansosAgg();
+    document.getElementById('kpis').replaceChildren(...kpiLayar2(kr, ba).map((c) => UI.kpiCard(c, { ringSize: 68 })));
+    const relevan = alerts.filter((a) => a.sec === 'keuangan' || a.sec === 'bansos');
+    document.getElementById('main').replaceChildren(safe('Keuangan', () => pKeuangan(kr)), safe('Bantuan Sosial', () => pBansos(ba)), safe('Perlu perhatian', () => pAlerts(relevan, 'Perlu perhatian: keuangan & bantuan')));
+    document.getElementById('bottom').replaceChildren();
+  }
+  function renderScreen1(alerts, K) {
     const rows = W.applyFilter(wargaAll(), filter), a = W.aggregate(rows);
-    renderHead(K);
     document.getElementById('kpis').replaceChildren(...K.cards.map((c) => UI.kpiCard(c, { ringSize: 68 })));
-    mounts.length = 0;
     document.getElementById('main').replaceChildren(safe('Data Kependudukan', () => pWarga(K.sevOf('warga'), a)), safe('Peta', () => renderMap(rows)), safe('Perlu perhatian', () => pAlerts(alerts)));
     document.getElementById('bottom').replaceChildren(safe('Aplikasi Warga', () => pMobile(K.sevOf('mobile'))), safe('Kiosk', () => pKiosk(K.sevOf('kiosk'))), safe('Aset', () => pAset(K.sevOf('aset'))), safe('Server', () => pServer(K.sevOf('server'))), safe('Blangko', () => pBlangko(K.sevOf('blangko'))), safe('Sekolah', () => pSekolah(K.sevOf('sekolah'))));
+  }
+
+  /* ---------- render ---------- */
+  function render() {
+    clearInterval(mapTimer); clearInterval(alertTimer);
+    const alerts = buildAlerts();
+    const K = kpis(DAYS, alerts);
+    renderHead(K);
+    document.querySelector('.col').classList.toggle('s2', screen === 2);
+    mounts.length = 0;
+    try { if (screen === 1) renderScreen1(alerts, K); else renderScreen2(alerts); } catch (e) { console.error(e); throw e; }
     mounts.forEach((f) => f());
+    const dots = document.getElementById('dots');
+    if (dots) dots.replaceChildren(...(GANTIAN || LAYAR_TETAP ? [1, 2].map((n) => el('i', { class: n === screen ? 'on' : '', title: n === 1 ? 'Layar 1: operasional' : 'Layar 2: keuangan & bantuan sosial' })) : []));
+  }
+
+  // bergantian antara dua layar
+  if (GANTIAN > 0) {
+    setInterval(() => {
+      const col = document.querySelector('.col');
+      col.classList.add('fade');
+      setTimeout(() => { screen = screen === 1 ? 2 : 1; try { render(); } finally { col.classList.remove('fade'); } }, 450);
+    }, GANTIAN * 1000);
   }
 
   function tick() {

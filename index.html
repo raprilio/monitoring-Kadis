@@ -8,7 +8,7 @@
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <script>
 /* Pemeriksa pemasangan: tampilkan pesan yang jelas (bukan layar kosong) bila berkas hilang, versinya tidak sama, atau skrip error. */
-window.__expect = ["config.js", "data.js", "warga.js", "sekolah.js", "shared.js", "pengaturan.js", "ui.js", "map.js", "pengaturan-ui.js", "app.js"];
+window.__expect = ["config.js", "data.js", "warga.js", "sekolah.js", "keuangan.js", "bansos.js", "shared.js", "pengaturan.js", "ui.js", "map.js", "pengaturan-ui.js", "app.js"];
 (function () {
   var miss = [], errs = [];
   function note(m) { if (m && !/ResizeObserver/.test(m) && errs.indexOf(m) < 0) errs.push(m); }
@@ -36,7 +36,7 @@ window.__expect = ["config.js", "data.js", "warga.js", "sekolah.js", "shared.js"
 })();
 </script>
 <link rel="stylesheet" href="lib/leaflet/leaflet.css">
-<link rel="stylesheet" href="theme.css?v=2026-10-28.1">
+<link rel="stylesheet" href="theme.css?v=2026-10-28.2">
 <style>
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; scroll-padding-top: 96px; }
@@ -129,6 +129,9 @@ window.__expect = ["config.js", "data.js", "warga.js", "sekolah.js", "shared.js"
   @media (max-width: 820px) { .set-body { grid-template-columns: 1fr; } .set-right { position: static; } }
   .set-map { height: 440px; margin: 10px 0; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: var(--surface2); }
   :root[data-theme="dark"] .set-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.95) contrast(.9) saturate(.75); }
+  .set-vtx { width: 14px; height: 14px; border-radius: 50%; background: #ff8a1f; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.4); cursor: grab; }
+  .set-card select { max-width: 100%; }
+  .set-card label.t-sub { display: flex; gap: 8px; align-items: center; }
   .set-hint { margin: 6px 0 0; padding: 6px 10px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 22%, var(--surface)); font-size: 13.5px; font-weight: 600; }
   .set-status { min-height: 1.4em; font-size: 13.5px; color: var(--ink2); margin: 0 0 8px; }
   .set-status.bad { color: var(--crit-text); font-weight: 600; }
@@ -298,6 +301,8 @@ window.__expect = ["config.js", "data.js", "warga.js", "sekolah.js", "shared.js"
   .meter-top .l { color: var(--ink2); }
   .meter-top .v { font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
   .meter-track { height: 10px; border-radius: 5px; background: color-mix(in srgb, var(--fillc) 20%, var(--surface)); overflow: hidden; }
+  .meter-track { position: relative; overflow: visible; }
+  .meter-mark { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--ink); border-radius: 1px; }
   .meter-fill { height: 100%; border-radius: 5px; background: var(--fillc); }
 
   .kv { display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; font-size: 14px; }
@@ -369,16 +374,18 @@ window.__expect = ["config.js", "data.js", "warga.js", "sekolah.js", "shared.js"
   </div>
 </div>
 
-<script src="config.js?v=2026-10-28.1"></script>
-<script src="data.js?v=2026-10-28.1"></script>
-<script src="warga.js?v=2026-10-28.1"></script>
-<script src="sekolah.js?v=2026-10-28.1"></script>
-<script src="shared.js?v=2026-10-28.1"></script>
-<script src="pengaturan.js?v=2026-10-28.1"></script>
+<script src="config.js?v=2026-10-28.2"></script>
+<script src="data.js?v=2026-10-28.2"></script>
+<script src="warga.js?v=2026-10-28.2"></script>
+<script src="sekolah.js?v=2026-10-28.2"></script>
+<script src="keuangan.js?v=2026-10-28.2"></script>
+<script src="bansos.js?v=2026-10-28.2"></script>
+<script src="shared.js?v=2026-10-28.2"></script>
+<script src="pengaturan.js?v=2026-10-28.2"></script>
 <script src="lib/leaflet/leaflet.js"></script>
-<script src="ui.js?v=2026-10-28.1"></script>
-<script src="map.js?v=2026-10-28.1"></script>
-<script src="pengaturan-ui.js?v=2026-10-28.1"></script>
-<script src="app.js?v=2026-10-28.1"></script>
+<script src="ui.js?v=2026-10-28.2"></script>
+<script src="map.js?v=2026-10-28.2"></script>
+<script src="pengaturan-ui.js?v=2026-10-28.2"></script>
+<script src="app.js?v=2026-10-28.2"></script>
 </body>
 </html>

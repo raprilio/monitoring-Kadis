@@ -1,4 +1,4 @@
-(window.__ver = window.__ver || {})['app.js'] = '2026-10-28.1';
+(window.__ver = window.__ver || {})['app.js'] = '2026-10-28.2';
 (() => {
   'use strict';
 
@@ -6,7 +6,7 @@
   const {
     nfd, fmt, fmt1, pct, compact, rupiah, sum, avg, clamp, slice, changePct, dShort, dLong,
     el, SEV_LABEL, statusIcon, pill, blangkoStats, buildAlerts,
-    W, wargaAll, ready, kpis, petaTitik, petaCounts, petaGeo, SK, sekolahAll, sekolahAgg,
+    W, wargaAll, ready, kpis, petaTitik, petaCounts, petaGeo, SK, sekolahAll, sekolahAgg, KL, BL, keuanganRingkas, bansosAgg,
   } = window.DashLib;
   const UI = window.DashUI;
 
@@ -804,6 +804,117 @@
     );
   }
 
+
+  /* ============================== keuangan desa & bantuan sosial ============================== */
+  /** Kartu sumber data + impor CSV generik. `muat(text)` → {data, report}; `pasang(data, file)` memasang data lalu render ulang. */
+  function kartuImpor({ label, meta, tombol, muat, pasang, info, tanggal }) {
+    const input = el('input', { type: 'file', accept: '.csv,text/csv,text/plain', hidden: true });
+    const report = el('div', { class: 'import-report', hidden: true });
+    const src = meta.jenis === 'api' ? `API ${meta.url} · ${fmt(meta.jumlah)} baris` : meta.jenis === 'csv' ? `File ${meta.nama} · ${fmt(meta.jumlah)} baris (hanya ada di browser ini, tidak diunggah)` : 'Data contoh (sintetis)';
+    const btn = el('button', { type: 'button', class: 'btn', text: tombol });
+    btn.addEventListener('click', () => input.click());
+    input.addEventListener('change', async () => {
+      const file = input.files[0];
+      if (!file) return;
+      const { data, report: r } = muat(await file.text());
+      input.value = '';
+      report.hidden = false;
+      if (r.error) { report.replaceChildren(el('p', { class: 'err', text: 'Gagal membaca file: ' + r.error }), el('p', { class: 't-sub', text: `Kolom di file: ${(r.tidakDikenali || []).join(', ') || '(tidak ada)'}` })); return; }
+      const use = el('button', { type: 'button', class: 'btn', text: `Pakai ${fmt(r.diimpor)} baris ini` }), cancel = el('button', { type: 'button', class: 'btn', text: 'Batal' });
+      use.addEventListener('click', () => { pasang(data, file, r.diimpor); render(); });
+      cancel.addEventListener('click', () => { report.hidden = true; });
+      const alasan = Object.entries(r.alasan).map(([k, v]) => `${fmt(v)} ${k}`).join(', ');
+      report.replaceChildren(...[
+        el('p', {}, [el('b', { text: `${fmt(r.baris)} baris dibaca: ${fmt(r.diimpor)} diimpor, ${fmt(r.dilewati)} dilewati` }), alasan ? ` (${alasan})` : '', '.']),
+        el('p', { class: 't-sub', text: `Kolom dikenali: ${r.dikenali.join(', ')}.` }),
+        r.tidakDikenali.length ? el('p', { class: 't-sub', text: `Kolom tidak dipakai: ${r.tidakDikenali.join(', ')}.` }) : null,
+        r.catatan ? el('p', { class: 't-sub', text: r.catatan }) : null,
+        el('div', { class: 'row-btns' }, [use, cancel]),
+      ].filter(Boolean));
+    });
+    return el('article', { class: 'card sourcebar' }, [
+      el('div', { class: 'src-line' }, [el('span', {}, [el('b', { text: label + ': ' }), src]), el('span', { class: 'row-btns' }, [btn, input])]),
+      meta.galat ? el('p', { class: 'err', text: meta.galat }) : null,
+      el('p', { class: 't-sub', text: `${tanggal ? `Data terakhir diperbarui ${new Date(tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}. ` : ''}${info}` }),
+      report,
+    ].filter(Boolean));
+  }
+  /** Batang progres: isi = persen, garis tegak = porsi waktu yang sudah berjalan. */
+  function progressEl({ label, left, right, value, mark, sev = 'ok' }) {
+    const fillc = sev === 'critical' ? 'var(--crit)' : sev === 'warning' ? 'var(--warn)' : 'var(--s1)';
+    return el('div', { class: 'meter prog', style: '--fillc:' + fillc }, [
+      el('div', { class: 'meter-top' }, [el('span', { class: 'l', text: label }), el('span', { class: 'v' }, [sev !== 'ok' ? pill(sev) : null, right])]),
+      el('div', { class: 'meter-track', role: 'meter', 'aria-label': label, 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': Math.round(value) }, [
+        el('div', { class: 'meter-fill', style: `width:${clamp(value, 0, 100)}%` }),
+        mark != null ? el('div', { class: 'meter-mark', style: `left:${clamp(mark, 0, 100)}%`, title: `Porsi waktu berjalan ${pct(mark, 0)}` }) : null,
+      ]),
+      left ? el('div', { class: 't-sub', text: left }) : null,
+    ]);
+  }
+
+  function secKeuangan() {
+    const r = keuanganRingkas(), B = r.belanja.total, P = r.pendapatan.total, K = D.keuangan;
+    const lagN = r.tertinggal.length;
+    const insight = `Anggaran belanja ${rupiah(B.anggaran)}; terealisasi ${pct(B.persen, 0)} (${rupiah(B.realisasi)}) saat ${pct(r.waktu, 0)} tahun anggaran ${r.tahun} sudah berjalan.${lagN ? ` ${lagN} bidang tertinggal dari target waktu.` : ' Semua bidang sesuai jalur.'}`;
+    const worst = r.belanja.rows.reduce((a, b) => ({ critical: 2, warning: 1, ok: 0 }[b.sev] > { critical: 2, warning: 1, ok: 0 }[a.sev] ? b : a), { sev: 'ok' });
+    const prog = (rows) => el('div', { class: 'meters' }, rows.map((x) => progressEl({
+      label: x.uraian, right: `${pct(x.persen, 0)}`, value: x.persen, mark: x.tanpaTarget ? null : r.waktu, sev: x.sev,
+      left: `${rupiah(x.realisasi)} dari ${rupiah(x.anggaran)}${x.tanpaTarget ? ' · dana cadangan, wajar belum terpakai' : ` · sisa ${rupiah(x.sisa)}`}`,
+    })));
+    const tabel = (rows) => [['Uraian', 'Anggaran', 'Realisasi', 'Persen', 'Sisa'], rows.map((x) => [x.uraian, rupiah(x.anggaran), rupiah(x.realisasi), pct(x.persen, 0), rupiah(x.sisa)]), { numCols: [1, 2, 3, 4] }];
+    return section('keuangan', '8', 'Keuangan Desa (APBDes)', insight,
+      kartuImpor({
+        label: 'Sumber data keuangan', meta: D.meta.sumberKeuangan, tombol: 'Impor CSV APBDes…', tanggal: K.diperbarui,
+        muat: (t) => KL.importCSV(t, W.parseCSV, K.tahun), pasang: (data, file, n) => { D.keuangan = { ...data, ambang: K.ambang }; D.meta.sumberKeuangan = { jenis: 'csv', nama: file.name, jumlah: n }; },
+        info: 'Format CSV: kolom jenis (Pendapatan/Belanja), uraian (bidang atau sumber), anggaran, realisasi; kolom cadangan (ya) untuk dana yang wajar belum terpakai. Garis tegak pada batang = porsi tahun anggaran yang sudah berjalan; ambang peringatan (tertinggal 15 dan 30 poin) adalah nilai awal, bukan aturan.',
+      }),
+      tiles(
+        tile({ label: 'Anggaran belanja', value: rupiah(B.anggaran), sub: `tahun anggaran ${r.tahun}` }),
+        tile({ label: 'Belanja terealisasi', value: pct(B.persen, 0), sev: worst.sev === 'ok' ? null : worst.sev, sub: `${rupiah(B.realisasi)} · waktu berjalan ${pct(r.waktu, 0)}` }),
+        tile({ label: 'Sisa anggaran belanja', value: rupiah(B.sisa), sub: `${pct(100 - B.persen, 0)} dari anggaran` }),
+        tile({ label: 'Pendapatan terealisasi', value: pct(P.persen, 0), sub: `${rupiah(P.realisasi)} dari ${rupiah(P.anggaran)}` }),
+      ),
+      grid2(
+        card({ title: 'Belanja menurut bidang', sub: 'Garis tegak = porsi waktu yang sudah berjalan', build: (h) => h.append(prog(r.belanja.rows)), table: tabel(r.belanja.rows) }),
+        card({ title: 'Pendapatan menurut sumber', sub: 'Garis tegak = porsi waktu yang sudah berjalan', build: (h) => h.append(prog(r.pendapatan.rows)), table: tabel(r.pendapatan.rows) }),
+      )
+    );
+  }
+
+  function secBansos() {
+    const b = bansosAgg(), Bd = D.bansos;
+    if (!Bd.penerima.length) return section('bansos', '9', 'Bantuan Sosial', 'Belum ada data penerima.', kartuImpor({ label: 'Sumber data bantuan sosial', meta: D.meta.sumberBansos, tombol: 'Impor CSV penerima…', tanggal: Bd.diperbarui, muat: (t) => BL.importCSV(t, W.parseCSV), pasang: (data, file, n) => { D.bansos = data; D.meta.sumberBansos = { jenis: 'csv', nama: file.name, jumlah: n }; }, info: 'Kolom wajib: program, NIK.' }));
+    const insight = `${fmt(b.unikSemua)} penerima unik di ${b.per.length} program (${fmt(b.rangkap)} menerima lebih dari satu program); ${fmt(b.tersalur)} dari ${fmt(b.terdata)} penerimaan sudah tersalur.${b.tidakCocok ? ` ${fmt(b.tidakCocok)} NIK tidak ada di data penduduk.` : ''}${b.ganda ? ` ${fmt(b.ganda)} data ganda.` : ''}`;
+    const rows = b.per.map((p) => [p.nama, p.kuota == null ? '—' : fmt(p.kuota), fmt(p.terdata), fmt(p.tersalur), fmt(p.belum), fmt(p.ditunda), p.tidakCocok == null ? '—' : fmt(p.tidakCocok), fmt(p.ganda), rupiah(p.nilaiTersalur)]);
+    return section('bansos', '9', 'Bantuan Sosial', insight,
+      kartuImpor({
+        label: 'Sumber data bantuan sosial', meta: D.meta.sumberBansos, tombol: 'Impor CSV penerima…', tanggal: Bd.diperbarui,
+        muat: (t) => BL.importCSV(t, W.parseCSV, Bd.tahun), pasang: (data, file, n) => { D.bansos = data; D.meta.sumberBansos = { jenis: 'csv', nama: file.name, jumlah: n }; },
+        info: 'Format CSV: program, NIK, nama, status penyaluran; kuota dan nilai bantuan bila ada. Dashboard hanya memantau data penerima yang tercatat; menilai siapa yang berhak adalah keputusan musyawarah desa dan data kesejahteraan resmi, bukan dashboard ini.',
+      }),
+      tiles(
+        ...b.per.map((p) => tile({ label: p.nama, value: fmt(p.terdata), sev: p.persenKuota != null && p.persenKuota < 90 ? 'warning' : null, sub: `${p.kuota == null ? 'kuota belum diisi' : `kuota ${fmt(p.kuota)} (${pct(p.persenKuota, 0)})`} · tersalur ${fmt(p.tersalur)}` })),
+        tile({ label: 'Perlu diperiksa', value: fmt((b.tidakCocok || 0) + b.ganda), sev: (b.tidakCocok || 0) + b.ganda ? 'warning' : null, sub: b.catatan || `${b.tidakCocok == null ? '—' : fmt(b.tidakCocok)} NIK tidak cocok · ${fmt(b.ganda)} ganda` }),
+      ),
+      grid2(
+        card({
+          title: 'Penerima terhadap kuota dan penyaluran', sub: 'Isi = penerima/kuota atau penyaluran',
+          build: (h) => h.append(el('div', { class: 'meters' }, b.per.flatMap((p) => [
+            p.persenKuota != null ? progressEl({ label: `${p.nama}: terdata`, right: `${fmt(p.terdata)} / ${fmt(p.kuota)}`, value: p.persenKuota, sev: p.persenKuota < 90 ? 'warning' : 'ok' }) : null,
+            progressEl({ label: `${p.nama}: sudah menerima`, right: `${fmt(p.tersalur)} / ${fmt(p.terdata)}`, value: p.persenSalur, sev: p.persenSalur < 85 ? 'warning' : 'ok' }),
+          ].filter(Boolean)))),
+          table: [['Program', 'Kuota', 'Terdata', 'Tersalur', 'Belum', 'Ditunda', 'NIK tidak cocok', 'Ganda', 'Nilai tersalur'], rows, { numCols: [1, 2, 3, 4, 5, 6, 7, 8] }],
+        }),
+        card({
+          title: 'Penerima menurut dusun', sub: b.bisaCocok ? 'Setiap penerimaan dihitung per program; dicocokkan lewat NIK dengan data penduduk' : (b.catatan || 'Butuh data penduduk (SIAK) yang NIK-nya cocok'),
+          build: (h) => (b.bisaCocok ? hbarChart(h, { items: b.perDusun }) : h.append(el('p', { class: 't-sub', text: b.catatan || 'Tidak bisa dihitung.' }))),
+          table: b.bisaCocok ? [['Dusun', 'Penerimaan'], b.perDusun.map((d) => [d.label, fmt(d.value)]), { numCols: [1] }] : null,
+        }),
+      ),
+      card({ title: 'Rincian per program', sub: 'Kuota, penyaluran, dan pemeriksaan data', tableOnly: [['Program', 'Kuota', 'Terdata', 'Tersalur', 'Belum', 'Ditunda', 'NIK tidak cocok', 'Ganda', 'Nilai tersalur'], rows, { tall: true, numCols: [1, 2, 3, 4, 5, 6, 7, 8] }] })
+    );
+  }
+
   const sevByUsage = (v, warn, crit) => (v >= crit ? 'critical' : v >= warn ? 'warning' : 'ok');
   const nodeSev = (n) => (n.status === 'ok' ? 'ok' : n.status === 'warning' ? 'warning' : 'critical');
 
@@ -989,7 +1100,7 @@
   const app = document.getElementById('app');
   const SECTIONS = [
     ['mobile', 'Aplikasi Warga', 'phone'], ['kiosk', 'Kiosk', 'kiosk'], ['aset', 'Aset Desa', 'box'],
-    ['warga', 'Kependudukan', 'users'], ['server', 'Server', 'server'], ['blangko', 'Blangko', 'doc'], ['sekolah', 'Pendidikan', 'school'],
+    ['warga', 'Kependudukan', 'users'], ['server', 'Server', 'server'], ['blangko', 'Blangko', 'doc'], ['sekolah', 'Pendidikan', 'school'], ['keuangan', 'Keuangan', 'coin'], ['bansos', 'Bantuan Sosial', 'heart'],
   ];
   let spy = null;
   function renderNav(K) {
@@ -1016,7 +1127,7 @@
         return el('section', { class: 'sec' }, el('article', { class: 'card' }, `Bagian "${nama}" gagal ditampilkan: ${e.message}. Biasanya karena berkas tidak sama versinya; unggah ulang semua berkas dan tekan Ctrl+F5.`));
       }
     };
-    app.replaceChildren(safe('Ringkasan', () => overview(alerts, K)), safe('Aplikasi Warga', secMobile), safe('Kiosk', secKiosk), safe('Aset', secAset), safe('Data Kependudukan', secWarga), safe('Server', secServer), safe('Blangko', secBlangko), safe('Pendidikan', secSekolah));
+    app.replaceChildren(safe('Ringkasan', () => overview(alerts, K)), safe('Aplikasi Warga', secMobile), safe('Kiosk', secKiosk), safe('Aset', secAset), safe('Data Kependudukan', secWarga), safe('Server', secServer), safe('Blangko', secBlangko), safe('Pendidikan', secSekolah), safe('Keuangan', secKeuangan), safe('Bantuan Sosial', secBansos));
     mapApi.update(wargaAll());
     renderNav(K);
     const sp = D.meta.sumberPenduduk;

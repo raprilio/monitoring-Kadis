@@ -7,7 +7,7 @@
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <script>
 /* Pemeriksa pemasangan: tampilkan pesan yang jelas (bukan layar kosong) bila berkas hilang, versinya tidak sama, atau skrip error. */
-window.__expect = ["config.js", "data.js", "warga.js", "sekolah.js", "shared.js", "pengaturan.js", "ui.js", "map.js", "tv.js"];
+window.__expect = ["config.js", "data.js", "warga.js", "sekolah.js", "keuangan.js", "bansos.js", "shared.js", "pengaturan.js", "ui.js", "map.js", "tv.js"];
 (function () {
   var miss = [], errs = [];
   function note(m) { if (m && !/ResizeObserver/.test(m) && errs.indexOf(m) < 0) errs.push(m); }
@@ -35,7 +35,7 @@ window.__expect = ["config.js", "data.js", "warga.js", "sekolah.js", "shared.js"
 })();
 </script>
 <link rel="stylesheet" href="lib/leaflet/leaflet.css">
-<link rel="stylesheet" href="theme.css?v=2026-10-28.1">
+<link rel="stylesheet" href="theme.css?v=2026-10-28.2">
 <style>
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; overflow: hidden; background: var(--page); }
@@ -65,7 +65,7 @@ window.__expect = ["config.js", "data.js", "warga.js", "sekolah.js", "shared.js"
   .hero .h-delta { font-size: 21px; font-weight: 600; }
   .clock { text-align: right; }
   .clock .c-time { font-size: 46px; line-height: 1.05; font-weight: 700; }
-  .clock .c-date { font-size: 19px; color: var(--ink2); }
+  .clock .c-date { font-size: 18px; color: var(--ink2); line-height: 1.15; }
 
   /* ---------- KPI ---------- */
   .kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; min-height: 0; }
@@ -134,6 +134,34 @@ window.__expect = ["config.js", "data.js", "warga.js", "sekolah.js", "shared.js"
   .map-info .tp { font-size: 16px; color: var(--ink2); }
   .map-info .d { font-size: 18px; }
 
+
+  /* layar 2 (keuangan & bantuan sosial) */
+  .col { transition: opacity .45s; }
+  .col.fade { opacity: 0; }
+  .col.s2 { grid-template-rows: 80px 116px minmax(0, 1fr); }
+  .col.s2 .bottom { display: none; }
+  .col.s2 .main { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 500px; }
+  .dots { display: flex; gap: 6px; justify-content: flex-end; height: 6px; margin-top: 3px; }
+  .dots i { width: 22px; height: 6px; border-radius: 3px; background: var(--axis); }
+  .dots i.on { background: var(--accent); }
+  .col.s2 .panel .body { gap: 16px; }
+  .col.s2 .prow { font-size: 21px; }
+  .col.s2 .prow .v .ico { width: 20px; height: 20px; }
+  .col.s2 .ptrack { height: 20px; border-radius: 10px; }
+  .col.s2 .ptrack i { border-radius: 10px; }
+  .col.s2 .pmark { top: -5px; bottom: -5px; }
+  .col.s2 .sub { font-size: 20px; }
+  .col.s2 .rowline { font-size: 21px; }
+  .col.s2 .hfill { height: 18px; }
+  .prow { display: grid; grid-template-columns: var(--pl, 350px) 1fr 70px; gap: 12px; align-items: center; font-size: 18px; }
+  .prow .n { color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .prow .v { font-weight: 600; text-align: right; display: inline-flex; justify-content: flex-end; align-items: center; gap: 6px; white-space: nowrap; }
+  .prow .v .ico { width: 18px; height: 18px; }
+  .ptrack { position: relative; height: 14px; border-radius: 7px; background: color-mix(in srgb, var(--fillc) 22%, var(--surface)); }
+  .ptrack i { display: block; height: 100%; border-radius: 7px; background: var(--fillc); }
+  .pmark { position: absolute; top: -4px; bottom: -4px; width: 3px; border-radius: 1px; background: var(--ink); }
+  .pmark-key { display: inline-block; width: 3px; height: 14px; background: var(--ink); vertical-align: -2px; }
+
   /* peringatan */
   .alert-list { display: flex; flex-direction: column; gap: 0; transition: opacity .35s; }
   .alert-list.fade { opacity: 0; }
@@ -155,7 +183,7 @@ window.__expect = ["config.js", "data.js", "warga.js", "sekolah.js", "shared.js"
         <p><span id="desa"></span> <span class="demo" id="demo" hidden>Data contoh</span></p>
       </div>
       <div class="hero" id="hero"></div>
-      <div class="clock"><div class="c-time" id="time"></div><div class="c-date" id="date"></div></div>
+      <div class="clock"><div class="c-time" id="time"></div><div class="c-date" id="date"></div><div class="dots" id="dots" aria-hidden="true"></div></div>
     </header>
     <section class="kpis" id="kpis" aria-label="Ringkasan"></section>
     <section class="main" id="main"></section>
@@ -163,15 +191,17 @@ window.__expect = ["config.js", "data.js", "warga.js", "sekolah.js", "shared.js"
   </div>
 </div>
 
-<script src="config.js?v=2026-10-28.1"></script>
-<script src="data.js?v=2026-10-28.1"></script>
-<script src="warga.js?v=2026-10-28.1"></script>
-<script src="sekolah.js?v=2026-10-28.1"></script>
-<script src="shared.js?v=2026-10-28.1"></script>
-<script src="pengaturan.js?v=2026-10-28.1"></script>
+<script src="config.js?v=2026-10-28.2"></script>
+<script src="data.js?v=2026-10-28.2"></script>
+<script src="warga.js?v=2026-10-28.2"></script>
+<script src="sekolah.js?v=2026-10-28.2"></script>
+<script src="keuangan.js?v=2026-10-28.2"></script>
+<script src="bansos.js?v=2026-10-28.2"></script>
+<script src="shared.js?v=2026-10-28.2"></script>
+<script src="pengaturan.js?v=2026-10-28.2"></script>
 <script src="lib/leaflet/leaflet.js"></script>
-<script src="ui.js?v=2026-10-28.1"></script>
-<script src="map.js?v=2026-10-28.1"></script>
-<script src="tv.js?v=2026-10-28.1"></script>
+<script src="ui.js?v=2026-10-28.2"></script>
+<script src="map.js?v=2026-10-28.2"></script>
+<script src="tv.js?v=2026-10-28.2"></script>
 </body>
 </html>

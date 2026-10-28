@@ -1,4 +1,4 @@
-(window.__ver = window.__ver || {})['shared.js'] = '2026-10-28.1';
+(window.__ver = window.__ver || {})['shared.js'] = '2026-10-28.2';
 /* Fungsi bersama untuk tampilan rinci (index.html) dan tampilan TV (tv.html). */
 window.DashLib = (() => {
   'use strict';
@@ -134,6 +134,20 @@ window.DashLib = (() => {
       if (sk.belumLanjut) add('warning', `${fmt(sk.belumLanjut)} lulusan SD/SMP belum tercatat melanjutkan`, 'Menunggu data sekolah diperbarui, atau perlu didekati orang tuanya', 'sekolah', 'Pendidikan');
       if (sk.ats && sk.ats.total) add(sk.ats.total / (sk.ats.dari || 1) > 0.25 ? 'critical' : 'warning', `${fmt(sk.ats.total)} anak usia sekolah belum tercatat bersekolah`, `Dari ${fmt(sk.ats.dari)} anak usia 7–18 tahun`, 'sekolah', 'Pendidikan');
     }
+    if (D.keuangan) {
+      const k = keuanganRingkas();
+      k.belanja.rows.filter((r) => r.sev !== 'ok').forEach((r) => add(r.sev, `Belanja "${r.uraian}" baru ${pct(r.persen, 0)} terealisasi`, `Waktu ${pct(k.waktu, 0)} · sisa ${rupiah(r.sisa)}`, 'keuangan', 'Keuangan'));
+      k.pendapatan.rows.filter((r) => r.sev !== 'ok').forEach((r) => add(r.sev, `Pendapatan "${r.uraian}" baru ${pct(r.persen, 0)} terealisasi`, `Waktu ${pct(k.waktu, 0)} · cek pencairan`, 'keuangan', 'Keuangan'));
+    }
+    if (D.bansos && D.bansos.penerima && D.bansos.penerima.length) {
+      const b = bansosAgg();
+      b.per.forEach((p) => {
+        if (p.persenKuota != null && p.persenKuota < 90) add('warning', `${p.nama}: penerima baru ${fmt(p.terdata)} dari kuota ${fmt(p.kuota)}`, 'Kuota belum terpenuhi', 'bansos', 'Bantuan sosial');
+        if (p.belum + p.ditunda > 0) add('warning', `${p.nama}: ${fmt(p.belum + p.ditunda)} penerima belum menerima penyaluran`, `${fmt(p.belum)} belum, ${fmt(p.ditunda)} ditunda`, 'bansos', 'Bantuan sosial');
+      });
+      if (b.tidakCocok) add('warning', `${fmt(b.tidakCocok)} penerima bantuan tidak ditemukan di data penduduk`, 'Periksa NIK penerima di data SIAK', 'bansos', 'Bantuan sosial');
+      if (b.ganda) add('critical', `${fmt(b.ganda)} data penerima bantuan tercatat ganda`, 'NIK muncul lebih dari sekali', 'bansos', 'Bantuan sosial');
+    }
     const order = { critical: 0, warning: 1 };
     return A.sort((a, b) => order[a.sev] - order[b.sev]);
   }
@@ -162,8 +176,39 @@ window.DashLib = (() => {
       D.meta.sumberSekolah = prev.jenis === 'api' ? { ...prev, galat: `Pembaruan terakhir gagal (${e.message}); memakai data sebelumnya.` } : { jenis: 'contoh', galat: `Gagal mengambil ${url}: ${e.message}. Memakai data contoh.` };
     }
   }
-  const readyAll = Promise.all([ready, loadSekolah()]).then(() => undefined);
-  const reloadAll = () => Promise.all([loadWarga(), loadSekolah()]).then(() => undefined);
+
+  /* ---------- keuangan desa & bantuan sosial ---------- */
+  const KL = window.KeuanganLib, BL = window.BansosLib;
+  const keuanganRingkas = () => KL.ringkas(D.keuangan);
+  const bansosAgg = () => BL.agregat(D.bansos, wargaAll());
+  D.meta.sumberKeuangan = { jenis: 'contoh' };
+  D.meta.sumberBansos = { jenis: 'contoh' };
+  /** Ambil JSON dari alamat di DASHBOARD_CONFIG[cfgKey]; `terima(json)` memasang datanya. Gagal → data sebelumnya tetap dipakai. */
+  async function muatApi(cfgKey, metaKey, terima) {
+    const url = (window.DASHBOARD_CONFIG || {})[cfgKey];
+    if (!url) return;
+    try {
+      const res = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const jml = terima(await res.json());
+      D.meta[metaKey] = { jenis: 'api', url, jumlah: jml, diambil: new Date().toISOString() };
+    } catch (e) {
+      const prev = D.meta[metaKey];
+      D.meta[metaKey] = prev.jenis === 'api' ? { ...prev, galat: `Pembaruan terakhir gagal (${e.message}); memakai data sebelumnya.` } : { jenis: 'contoh', galat: `Gagal mengambil ${url}: ${e.message}. Memakai data contoh.` };
+    }
+  }
+  const loadKeuangan = () => muatApi('apiKeuangan', 'sumberKeuangan', (j) => {
+    if (!j || !Array.isArray(j.belanja) || !Array.isArray(j.pendapatan)) throw new Error('format data tidak dikenali (butuh pendapatan[] dan belanja[])');
+    D.keuangan = { tahun: j.tahun || new Date().getFullYear(), ambang: j.ambang, diperbarui: j.diperbarui || new Date().toISOString(), pendapatan: j.pendapatan, belanja: j.belanja };
+    return j.pendapatan.length + j.belanja.length;
+  });
+  const loadBansos = () => muatApi('apiBansos', 'sumberBansos', (j) => {
+    if (!j || !Array.isArray(j.program) || !Array.isArray(j.penerima)) throw new Error('format data tidak dikenali (butuh program[] dan penerima[])');
+    D.bansos = { tahun: j.tahun || new Date().getFullYear(), diperbarui: j.diperbarui || new Date().toISOString(), program: j.program, penerima: j.penerima };
+    return j.penerima.length;
+  });
+  const readyAll = Promise.all([ready, loadSekolah(), loadKeuangan(), loadBansos()]).then(() => undefined);
+  const reloadAll = () => Promise.all([loadWarga(), loadSekolah(), loadKeuangan(), loadBansos()]).then(() => undefined);
 
   /* ---------- statistik periode & kartu KPI (dipakai bersama oleh index.html dan tv.html) ---------- */
   function periodOf(arr, days, mode = 'sum') {
@@ -247,7 +292,9 @@ window.DashLib = (() => {
     };
     const palsu = g.contoh && !fromGj.size; // bentuk dusun hasil konversi gambar skematik hanya layak di lokasi contoh
     const adaDusun = g.contoh || fromGj.size > 0;
-    const dusun = (adaDusun ? P.dusun.filter((d) => g.contoh || fromGj.has(d.nama)) : []).map((d) => { // di wilayah nyata hanya dusun yang punya batas asli
+    const namaP = P.dusun.map((d) => d.nama);
+    const tambahan = [...fromGj.keys()].filter((n) => !namaP.includes(n)).map((nama) => ({ nama, poligon: [], label: [0, 0] })); // dusun hasil gambar/GeoJSON yang belum ada di daftar
+    const dusun = (adaDusun ? [...P.dusun, ...tambahan].filter((d) => g.contoh || fromGj.has(d.nama)) : []).map((d) => { // di wilayah nyata hanya dusun yang punya batas asli
       const polys = fromGj.get(d.nama) || [d.poligon.map(toLL)];
       const flat = polys.flat();
       const label = fromGj.has(d.nama) ? [sum(flat.map((p) => p[0])) / flat.length, sum(flat.map((p) => p[1])) / flat.length] : toLL(d.label);
@@ -258,7 +305,7 @@ window.DashLib = (() => {
     const titik = semuaTitik.filter((p) => g.contoh || (p.lat != null && p.lng != null)).map((p) => ({ ...p, ll: p.lat != null && p.lng != null ? [p.lat, p.lng] : toLL([p.x, p.y]) }));
     const tanpaKoordinat = semuaTitik.length - titik.length;
     const wilayah = [{ key: 'desa', label: 'Seluruh desa', bounds: desaBounds }, ...dusun.map((d) => ({ key: d.key, label: d.nama, bounds: d.bounds }))];
-    return { geo: g, dusun, titik, wilayah, desaBounds, desaPoligon: g.desaPoligon || null, tanpaKoordinat, adaDusun };
+    return { geo: g, dusun, titik, wilayah, desaBounds, desaPoligon: g.desaPoligon || null, gambar: g.gambar || [], tanpaKoordinat, adaDusun };
   }
   const petaCounts = (rows) => {
     const m = new Map();
@@ -269,6 +316,6 @@ window.DashLib = (() => {
   return {
     D, nf, nfd, fmt, fmt1, pct, compact, rupiah, sum, avg, clamp, slice, changePct, dShort, dLong,
     el, SEV_LABEL, statusIcon, pill, blangkoStats, buildAlerts,
-    W, wargaAll, ready: readyAll, reload: reloadAll, periodOf, kpis, petaTitik, petaCounts, petaGeo, SK, sekolahAll, sekolahAgg,
+    W, wargaAll, ready: readyAll, reload: reloadAll, periodOf, kpis, petaTitik, petaCounts, petaGeo, SK, sekolahAll, sekolahAgg, KL, BL, keuanganRingkas, bansosAgg,
   };
 })();

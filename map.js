@@ -1,4 +1,4 @@
-(window.__ver = window.__ver || {})['map.js'] = '2026-10-28.1';
+(window.__ver = window.__ver || {})['map.js'] = '2026-10-28.2';
 /*
  * Peta nyata (OpenStreetMap + Leaflet) yang bisa DIKUNCI ke wilayah tertentu.
  *  - Wilayah: seluruh desa atau satu dusun (tampilan langsung menyesuaikan).
@@ -67,10 +67,37 @@ window.DashMap = (() => {
       tiles.on('tileerror', () => { errors++; if (!loaded && errors >= 4) fallback('Peta dasar tidak bisa dimuat (periksa koneksi internet).'); });
       waitTimer = setTimeout(() => { if (!loaded) fallback('Peta dasar tidak bisa dimuat (periksa koneksi internet).'); }, opts.tileWaitMs || 9000);
 
-      if (opts.controls) addControls();
+      if (opts.controls) { addControls(); addLinks(); }
       let raf = 0;
       ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { if (map) { map.invalidateSize(); applyView(false); } }); });
       ro.observe(host);
+    }
+
+    /** "Rute" dan "Buka di Maps" seperti di Google Maps (tautan resmi, tanpa kunci API), plus tombol layar penuh. */
+    function addLinks() {
+      const Ctl = L.Control.extend({
+        options: { position: 'bottomleft' },
+        onAdd() {
+          const box = el('div', { class: 'gm-links' });
+          const tujuan = () => { const b = L.latLngBounds(region().bounds).getCenter(); return [b.lat, b.lng]; };
+          const mk = (label, fn, ikon) => { const a = el('a', { class: 'gm-pill', target: '_blank', rel: 'noopener noreferrer', href: '#' }, [ikon, el('span', { text: label })]); a.addEventListener('click', () => { const [la, lo] = tujuan(); a.href = fn(la, lo); }); a.addEventListener('focus', () => { const [la, lo] = tujuan(); a.href = fn(la, lo); }); return a; };
+          const svg = (d) => el('svg:svg', { viewBox: '0 0 24 24', width: 18, height: 18, fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' }, el('svg:path', { d }));
+          box.append(mk('Rute', window.Pengaturan.urlGoogleRute, svg('M12 3l9 9-9 9-9-9zM9 12h6M12 9l3 3-3 3')), mk('Buka di Maps', window.Pengaturan.urlGoogleMaps, svg('M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14')));
+          L.DomEvent.disableClickPropagation(box);
+          return box;
+        },
+      });
+      new Ctl().addTo(map);
+      const Fs = L.Control.extend({
+        options: { position: 'topright' },
+        onAdd() {
+          const b = el('button', { type: 'button', class: 'gm-fs leaflet-bar', title: 'Layar penuh', 'aria-label': 'Layar penuh' }, el('svg:svg', { viewBox: '0 0 24 24', width: 20, height: 20, fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' }, el('svg:path', { d: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5' })));
+          b.addEventListener('click', () => { if (document.fullscreenElement) document.exitFullscreen(); else if (host.requestFullscreen) host.requestFullscreen(); });
+          L.DomEvent.disableClickPropagation(b);
+          return b;
+        },
+      });
+      new Fs().addTo(map);
     }
 
     function addControls() {
@@ -131,7 +158,15 @@ window.DashMap = (() => {
         const C = L.Control.extend({ options: { position: 'bottomright' }, onAdd() { return el('div', { class: 'gm-miss', text: `${data.tanpaKoordinat} titik belum diberi koordinat, belum ditampilkan (Pengaturan → Titik lokasi).` }); } });
         noteCtl = new C().addTo(map);
       }
-      if (data.desaPoligon) L.polygon(data.desaPoligon, { color: cssVar('--accent') || '#ff8a1f', weight: 3, opacity: 0.95, fill: false, interactive: false, className: 'gm-desa' }).addTo(zoneLayer);
+      if (data.desaPoligon) L.polygon(data.desaPoligon, { color: '#ea4335', weight: 4, opacity: 0.95, fill: false, interactive: false, dashArray: '1 8', lineCap: 'round', className: 'gm-desa' }).addTo(zoneLayer); // titik-titik merah seperti batas wilayah di Google Maps
+      (data.gambar || []).forEach((x) => {
+        const warna = x.warna || '#ea4335';
+        const lyr = x.jenis === 'area'
+          ? L.polygon(x.titik, { color: warna, weight: 2.5, fillColor: warna, fillOpacity: 0.12, className: 'gm-gambar' })
+          : L.polyline(x.titik, { color: warna, weight: 4, opacity: 0.95, lineCap: 'round', lineJoin: 'round', className: 'gm-gambar' });
+        lyr.addTo(zoneLayer);
+        if (x.nama) lyr.bindTooltip(x.nama, { sticky: true, className: 'gm-tip' });
+      });
       const s1 = cssVar('--s1') || '#2a78d6';
       const mx = Math.max(1, ...data.dusun.map((d) => counts.get(d.nama) || 0));
       data.dusun.forEach((d) => {

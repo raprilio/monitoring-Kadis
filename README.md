@@ -4,7 +4,7 @@ Dashboard monitoring untuk Kepala Desa: satu tempat untuk laporan seluruh aplika
 
 - `index.html`: tampilan rinci (sidebar navigasi, KPI, peta desa, filter, tabel, isi data warga).
 - `tv.html`: tampilan TV satu layar tanpa scroll ("command center": KPI bercincin, peta desa, peringatan; hanya angka gabungan, tidak pernah nama/NIK).
-- `theme.css` (tema terang/gelap), `ui.js` (cincin, donat, kartu KPI, peta skematik), `map.js` (peta nyata), `pengaturan.js` + `pengaturan-ui.js` (pengaturan wilayah), `warga.js` (data SIAK), `sekolah.js` (data sekolah), `shared.js`, `app.js`, `tv.js`, `data.js`, `config.js`, `lib/leaflet/`.
+- `theme.css` (tema terang/gelap), `ui.js` (cincin, donat, kartu KPI, peta skematik), `map.js` (peta nyata), `pengaturan.js` + `pengaturan-ui.js` (pengaturan wilayah), `warga.js` (data SIAK), `sekolah.js` (data sekolah), `keuangan.js` (APBDes), `bansos.js` (bantuan sosial), `shared.js`, `app.js`, `tv.js`, `data.js`, `config.js`, `lib/leaflet/`.
 
 ## Tampilan
 
@@ -20,9 +20,18 @@ Catatan: peta dasar diambil dari server OpenStreetMap (`peta.geo.tiles.url`). Ke
 Tombol **Pengaturan** (kanan atas `index.html`) atau **Atur wilayah** (kartu peta) membuka dialog dengan pratinjau peta:
 - **Otomatis:** (1) cari nama desa di OpenStreetMap, ambil kotak batas dan garis batas bila ada; (2) pakai lokasi perangkat ini (+ radius km); (3) cocokkan ke titik kiosk/aset/balai yang sudah berkoordinat; (4) cari garis batas tiap dusun di OSM (yang tidak ada di OSM tidak ditampilkan, tidak dikarang).
 - **Manual:** isi koordinat batas (barat daya dan timur laut) atau klik dua sudut di peta, tempel GeoJSON batas dusun, atur zoom dan server peta.
+- **Gambar bebas (di mode Manual):** gambar sendiri di peta pratinjau, batas desa, batas tiap dusun, atau garis/area lain (jalan, sungai, zona). Dua cara: klik titik demi titik (klik titik pertama atau tekan Selesai untuk menutup), atau bebas dengan menahan klik/jari dan menyeret (otomatis dirapikan). Batas desa yang sudah digambar bisa digeser titiknya (klik kanan pada titik untuk menghapus). Batas desa tampil di peta utama sebagai garis titik-titik merah seperti batas wilayah di Google Maps.
+- **Acuan dari Google Maps:** tempel tautan Google Maps (yang memuat `@lintang,bujur`) atau ketik `lintang, bujur` untuk mengarahkan peta, tombol **Buka wilayah ini di Google Maps** untuk melihat batasnya di sana, lalu garis ulang. Garis batas milik Google tidak bisa disalin otomatis (ketentuan layanan Google dan butuh kunci API berbayar); bila Anda punya garis dari Google My Maps/Earth, ekspor sebagai **KML** (bukan KMZ) atau GeoJSON lalu **Impor KML / GeoJSON**. Peta utama juga punya tombol **Rute**, **Buka di Maps** (tautan resmi Google Maps, tanpa kunci) dan layar penuh.
 - **Titik lokasi:** isi lintang/bujur tiap kiosk, aset, dan balai, atau klik di peta, atau geser penandanya. Titik tanpa koordinat tidak ditampilkan di wilayah nyata (agar tidak ada posisi palsu).
 
 Penyimpanan: **Terapkan & simpan** menyimpan di browser itu saja. Agar TV dan semua perangkat ikut, tekan **Unduh config.js** lalu unggah menimpa `config.js` di hosting. Tersedia juga ekspor JSON (cadangan) dan impor. Pencarian otomatis memakai layanan Nominatim (OpenStreetMap) dari browser Anda, hanya saat tombol ditekan.
+
+## Keuangan desa (APBDes) dan bantuan sosial
+
+- **Keuangan Desa (bagian 8):** realisasi belanja (per bidang) dan pendapatan (per sumber) dibandingkan dengan anggaran **dan** porsi tahun anggaran yang sudah berjalan (garis tegak pada batang). Bidang yang tertinggal dari waktu diberi peringatan; dana cadangan (mis. darurat/bencana) tidak dinilai tertinggal. Ambang 15 dan 30 poin adalah **nilai awal**, bukan aturan; ubah di `keuangan.ambang` pada data. Sumber: impor CSV (kolom: jenis Pendapatan/Belanja, uraian, anggaran, realisasi; angka format "Rp 1.250.000,00" dibaca) atau `apiKeuangan`; bentuk data di `keuangan.js`.
+- **Bantuan Sosial (bagian 9):** penerima per program (BLT Dana Desa, PKH, Sembako, dll.) terhadap kuota, yang sudah menerima penyaluran, dan per dusun. Dicocokkan dengan data penduduk (SIAK) untuk menemukan **NIK penerima yang tidak ada di data penduduk** dan **data penerima ganda**. Sumber: impor CSV (program, NIK, nama, status penyaluran; kuota dan nilai bila ada) atau `apiBansos`; bentuk data di `bansos.js`.
+- Dashboard hanya **memantau data penerima yang tercatat**. Menilai siapa yang berhak menerima bantuan adalah keputusan musyawarah desa dan data kesejahteraan resmi, bukan dashboard ini. Nama penerima tidak ditampilkan di halaman mana pun (hanya angka gabungan).
+- **TV bergantian dua layar** tiap 25 detik: layar 1 operasional (seperti sebelumnya), layar 2 keuangan dan bantuan sosial. Tanda dua garis di bawah jam menunjukkan layar yang aktif. `tv.html?layar=1` atau `?layar=2` mengunci satu layar; `?gantian=40` mengubah jeda; `tvGantian: 0` di `config.js` menonaktifkan pergantian.
 
 ## Pendidikan (data sekolah) dengan pembaruan otomatis
 

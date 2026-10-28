@@ -1,4 +1,4 @@
-(window.__ver = window.__ver || {})['sekolah.js'] = '2026-10-28.1';
+(window.__ver = window.__ver || {})['sekolah.js'] = '2026-10-28.2';
 /*
  * Data sekolah: jumlah anak SD / SMP / SMK (dan SMA bila ada) + PEMBARUAN OTOMATIS saat kenaikan kelas dan kelulusan.
  *

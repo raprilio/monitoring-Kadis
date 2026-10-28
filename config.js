@@ -1,4 +1,4 @@
-(window.__ver = window.__ver || {})['config.js'] = '2026-10-28.1';
+(window.__ver = window.__ver || {})['config.js'] = '2026-10-28.2';
 /*
  * Konfigurasi sumber data.
  * apiPenduduk: alamat endpoint JSON yang mengembalikan daftar warga (array, atau { records: [...] })
@@ -8,10 +8,14 @@
  */
 /*
  * apiSekolah: alamat endpoint JSON data sekolah (array siswa, atau { siswa: [...], diperbarui }), bentuk data di sekolah.js.
+ * apiKeuangan / apiBansos: endpoint JSON data keuangan desa (bentuk di keuangan.js) dan bantuan sosial (bansos.js).
  * pengaturan: pengaturan wilayah peta; diisi otomatis bila Anda mengunduh config.js dari dialog Pengaturan di index.html.
  */
 window.DASHBOARD_CONFIG = {
   apiPenduduk: '',
   apiSekolah: '',
+  apiKeuangan: '',
+  apiBansos: '',
+  tvGantian: 25, // detik; TV bergantian antara layar operasional dan layar keuangan & bantuan sosial. 0 = tetap di layar pertama
   pengaturan: null,
 };
