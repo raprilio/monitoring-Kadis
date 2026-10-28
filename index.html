@@ -19,7 +19,6 @@
             <span class="pill ok">SYSTEM ACTIVE</span>
             <span class="pill">6 TURNSTILES</span>
             <span class="pill warn" id="simPill" hidden title="Ada data demo/simulasi tersimpan. Hapus di Pengaturan.">DATA DEMO</span>
-            <span class="pill err" id="offPill" hidden title="Tidak tersambung ke server Rust (mencoba lagi otomatis). Jika diminta token, klik di sini." style="cursor:pointer">OFFLINE</span>
           </h1>
           <p id="parkSub"></p>
         </div>
@@ -60,7 +59,7 @@
             <div class="ic-box amber"><i data-ic="sliders"></i></div>
             <div>
               <h2>KONSOL KONTROL MANUAL PETUGAS (PER-GATE OVERRIDE) <span class="pill amber">OFFICER ACCESS</span></h2>
-              <p>Buka atau kunci turnstile per-gate secara manual untuk tiket fisik, rombongan, lansia, atau uji coba.</p>
+              <p>Buka atau kunci turnstile per-gate secara manual untuk KTP-el yang tidak terbaca, rombongan, lansia, atau uji coba.</p>
             </div>
             <button class="btn danger-outline" id="btnPanic2" type="button"><i data-ic="alert"></i><span id="panic2Label">PANIC GATE (BUKA SEMUA)</span></button>
           </div>
@@ -223,7 +222,7 @@
           </div>
           <div class="card insights">
             <div class="card-head"><h3 class="purple"><i data-ic="spark"></i>SMART INSIGHTS</h3><span class="pill">RULE-BASED • LOKAL</span></div>
-            <p class="note">Analisis otomatis dari data akses hari ini. Ini mesin aturan sederhana yang dihitung di browser dari data server Anda sendiri — bukan model AI/LLM dan tidak ada data yang dikirim ke layanan pihak ketiga.</p>
+            <p class="note">Analisis otomatis dari data akses hari ini. Ini mesin aturan sederhana yang berjalan di browser — bukan model AI/LLM dan tidak mengirim data ke mana pun.</p>
             <div id="insights"></div>
           </div>
         </div>
@@ -240,7 +239,7 @@
               <label class="fld span2"><span>KAPASITAS MAKSIMUM (ORANG)</span><input id="sCap" type="number" min="1" max="100000"></label>
               <label class="fld span2"><span>RE-LOCK DELAY (DETIK)</span><input id="sRelock" type="number" min="1" max="30"></label>
               <label class="check span2"><input id="sAp" type="checkbox"><span>Anti-Passback (1 KTP = 1 masuk &amp; 1 keluar)</span></label>
-              <label class="check span2"><input id="sSound" type="checkbox"><span>Suara notifikasi gate (hanya perangkat ini)</span></label>
+              <label class="check span2"><input id="sSound" type="checkbox"><span>Suara notifikasi gate</span></label>
             </div>
           </div>
           <div class="card">
@@ -248,9 +247,9 @@
             <div class="form-grid" id="sGates"></div>
           </div>
           <div class="card">
-            <div class="card-head"><h3>HARGA TIKET (UNTUK ESTIMASI PENDAPATAN)</h3></div>
+            <div class="card-head"><h3>TARIF MASUK PER KATEGORI (OPSIONAL)</h3></div>
             <div class="form-grid" id="sPrices"></div>
-            <p class="note">Angka bawaan hanyalah contoh. Isi sesuai tarif resmi Anda.</p>
+            <p class="note">Akses memakai KTP-el. Biarkan 0 jika masuk gratis. Jika diisi, laporan menampilkan estimasi pendapatan (hanya perkiraan dari jumlah pengunjung, bukan data kasir).</p>
           </div>
           <div class="card">
             <div class="card-head"><h3>PENGUMUMAN TV (1 BARIS = 1 PESAN)</h3></div>
@@ -266,7 +265,7 @@
               <button class="btn danger-outline" id="btnResetToday" type="button">Reset Hari Ini</button>
               <button class="btn danger-outline" id="btnFactory" type="button">Reset Total</button>
             </div>
-            <p class="note"><b>Mode simulator.</b> Aplikasi ini memodelkan turnstile di layar — belum terhubung ke perangkat keras. Seluruh aturan dan data berada di server Rust (file <code>data/state.json</code>), dipakai bersama oleh semua perangkat; maksimal 8.000 catatan akses terakhir. NIK adalah data pribadi: layar dan CSV selalu menyamarkan NIK dan server tidak pernah mengirim NIK lengkap ke browser, tetapi file Backup JSON berisi NIK lengkap — simpan dengan aman.</p>
+            <p class="note"><b>Mode simulator.</b> Aplikasi ini memodelkan turnstile di layar — belum terhubung ke perangkat keras. Data disimpan di browser perangkat ini (localStorage), maksimal 8.000 catatan akses terakhir. NIK adalah data pribadi: tampilan dan CSV selalu menyamarkan NIK, tetapi file Backup JSON berisi NIK lengkap — simpan dengan aman.</p>
           </div>
         </div>
       </section>
@@ -282,7 +281,7 @@
     </form>
   </dialog>
 
-  <script src="js/client.js"></script>
+  <script src="js/core.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/tabs.js"></script>
   <script src="js/main.js"></script>

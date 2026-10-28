@@ -95,11 +95,9 @@
     el.className = 'sys ' + ss.key;
     el.textContent = '● ' + ss.label;
     $('#simPill').hidden = !st.hasSim;
-    $('#btnSound').innerHTML = WG.icon(WG.sound ? 'volume' : 'mute');
-    $('#btnSound').setAttribute('aria-pressed', WG.sound);
-    $('#btnSound').title = WG.sound ? 'Suara aktif di perangkat ini (klik untuk matikan)' : 'Suara mati di perangkat ini (klik untuk aktifkan)';
-    $('#offPill').hidden = WG.online;
-    $('#offPill').textContent = WG.needToken ? 'MASUKKAN TOKEN' : 'OFFLINE';
+    $('#btnSound').innerHTML = WG.icon(S.settings.sound ? 'volume' : 'mute');
+    $('#btnSound').setAttribute('aria-pressed', S.settings.sound);
+    $('#btnSound').title = S.settings.sound ? 'Suara aktif (klik untuk matikan)' : 'Suara mati (klik untuk aktifkan)';
     $('#btnPanic').innerHTML = WG.icon('alert') + (S.panic ? 'NORMALKAN' : 'PANIC GATE');
     $('#btnPanic').classList.toggle('active', S.panic);
     $('#btnPanic2').classList.toggle('active', S.panic);
@@ -127,6 +125,8 @@
       const el = document.createElement('article');
       el.className = `gate ${g.dir}`;
       el.dataset.gate = g.id;
+      el.tabIndex = 0; // the whole gate column is the selector (click / Enter / Space)
+      el.title = 'Klik untuk memilih gate ini sebagai target tap';
       el.innerHTML = `
         <span class="ribbon">TARGET</span>
         <div class="gate-top"><span class="gate-no">${String(g.n).padStart(2, '0')}</span><span class="gate-id">${g.id}</span><span class="chip" data-f="chip">LOCKED</span></div>
@@ -135,7 +135,6 @@
         <div class="viz"><div class="track"></div><div class="knob"></div><div class="arm"></div><span class="viz-label" data-f="viz">READY FOR TAP</span></div>
         <div class="gate-last" data-f="last"></div>
         <div class="gate-actions">
-          <button type="button" class="btn mini" data-act="target">PILIH TARGET</button>
           <button type="button" class="btn mini ghost" data-act="open">${WG.icon('unlock')}Buka</button>
         </div>`;
       $(g.dir === 'in' ? '#wingIn' : '#wingOut').appendChild(el);
@@ -163,9 +162,7 @@
       else if (r.status === 'MANUAL') viz = 'MANUAL OVERRIDE';
       else if (r.status === 'PANIC') viz = 'EMERGENCY OPEN';
       $('[data-f=viz]', el).textContent = viz;
-      const tb = $('[data-act=target]', el);
-      tb.innerHTML = isTarget ? '✕ LEPAS TARGET' : 'PILIH TARGET';
-      tb.classList.toggle('primary', isTarget);
+      el.setAttribute('aria-current', isTarget ? 'true' : 'false');
     }
     // gate selector keeps its own selection; just refresh labels
     const sel = $('#selGate');
@@ -198,7 +195,7 @@
       <div class="card stat purple">
         <div class="stat-h"><span>ANTI-PASSBACK GUARD</span><span class="pill ${S.settings.antiPassback ? 'ok' : 'warn'}">${S.settings.antiPassback ? 'ACTIVE' : 'OFF'}</span></div>
         <div class="ap-title">${WG.icon('shield')}<b>${S.settings.antiPassback ? '100% Secure' : 'Dinonaktifkan'}</b></div>
-        <p>${S.settings.antiPassback ? '1 KTP = 1x Masuk &amp; 1x Keluar. Mencegah duplikasi tiket &amp; fraud.' : 'Satu KTP bisa dipindai berulang. Aktifkan kembali di Pengaturan.'}</p>
+        <p>${S.settings.antiPassback ? '1 KTP = 1x Masuk &amp; 1x Keluar. Mencegah KTP dipakai berulang atau dipinjamkan &amp; fraud.' : 'Satu KTP bisa dipindai berulang. Aktifkan kembali di Pengaturan.'}</p>
         <div class="stat-f mono"><span>POLICY: ${S.settings.antiPassback ? 'STRICT ANTI-JOKI' : 'RELAXED'}</span><span>${st.denied} ditolak hari ini</span></div>
       </div>
       <div class="card stat">
@@ -213,8 +210,8 @@
     const S = WG.S;
     const tg = WG.gateById(S.target);
     $('#tapHint').textContent = `Tap ke: ${tg.id} (${tg.dir === 'in' ? 'masuk' : 'keluar'})`;
-    $('#presets').innerHTML = WG.presets.map((p) => {
-      const inside = p.inside;
+    $('#presets').innerHTML = WG.PRESETS.map((p) => {
+      const inside = S.visitors[p.nik] && S.visitors[p.nik].inside;
       return `<button type="button" class="preset ${inside ? 'inside' : ''} cat-${p.category}" data-nik="${p.nik}">
         <div class="p-top"><span class="mono dim">${p.nik.slice(0, 4)}...${p.nik.slice(-4)}</span><span class="badge ${inside ? 'amber' : p.category}">${inside ? 'Di Dalam' : WG.CATEGORIES[p.category].label}</span></div>
         <b>${esc(p.name)}</b><small>${esc(p.note)}</small><span class="tap">TAP CARD →</span></button>`;
@@ -251,29 +248,32 @@
     $('#btnLock').addEventListener('click', () => WG.lockGate($('#selGate').value));
     $('#btnPanic2').addEventListener('click', WG.togglePanic);
 
+    // Choosing a gate column makes it the tap target (there is always exactly one target).
+    // The "Buka" button inside the column also selects it, then opens it manually.
     $('.wings').addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-act]');
-      if (!btn) return;
-      const id = btn.closest('.gate').dataset.gate;
-      if (btn.dataset.act === 'open') {
-        WG.manualOpen(id, $('#selReason').value, +$('#selDur').value || 0);
-      } else {
-        // PILIH/LEPAS TARGET: releasing falls back to the first gate so there is always a target.
-        WG.setTarget(WG.S.target === id ? 'GM-01' : id);
+      const card = e.target.closest('.gate');
+      if (!card) return;
+      const id = card.dataset.gate;
+      WG.setTarget(id);
+      if (e.target.closest('[data-act=open]')) WG.manualOpen(id, $('#selReason').value, +$('#selDur').value || 0);
+    });
+    $('.wings').addEventListener('keydown', (e) => {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('gate')) {
+        e.preventDefault();
+        WG.setTarget(e.target.dataset.gate);
       }
     });
 
-    // Business denials (anti-passback, capacity…) come back as ok:false; transport errors are toasted by the client.
-    const doTap = async (p) => {
-      const r = await WG.tap({ ...p, gateId: WG.S.target });
-      if (!r.ok && !r.error) WG.toast(r.reason, 'err');
+    const doTap = (p) => {
+      const r = WG.tap({ ...p, gateId: WG.S.target });
+      if (!r.ok) WG.toast(r.reason, 'err');
       return r;
     };
     $('#presets').addEventListener('click', (e) => {
       const b = e.target.closest('.preset');
       if (!b) return;
-      const p = WG.presets.find((x) => x.nik === b.dataset.nik);
-      if (p) doTap(p);
+      const p = WG.PRESETS.find((x) => x.nik === b.dataset.nik);
+      doTap(p);
     });
 
     $('#fNik').addEventListener('input', () => {
@@ -288,15 +288,15 @@
         }
       }
     });
-    $('#btnFill').addEventListener('click', async () => {
-      const p = await WG.randomPersona();
+    $('#btnFill').addEventListener('click', () => {
+      const p = WG.randomPersona();
       if (!p) return;
       $('#fNik').value = p.nik; $('#fName').value = p.name; $('#fCity').value = p.city; $('#fProv').value = p.province; $('#fCat').value = p.category;
       nikHint();
     });
-    $('#ktpForm').addEventListener('submit', async (e) => {
+    $('#ktpForm').addEventListener('submit', (e) => {
       e.preventDefault();
-      const r = await doTap({
+      const r = doTap({
         nik: $('#fNik').value, name: $('#fName').value, city: $('#fCity').value, province: $('#fProv').value, category: $('#fCat').value,
       });
       if (r.ok) {
